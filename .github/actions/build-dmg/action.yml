@@ -1,0 +1,97 @@
+name: Build macOS ARM64 DMG
+description: Runs unit tests, builds Ciaccona (Release, arm64), ad-hoc signs it, and packages a DMG with SHA-256 checksum.
+
+inputs:
+  version:
+    description: Optional version label for the DMG filename (defaults to v<CFBundleShortVersionString>).
+    required: false
+    default: ""
+
+outputs:
+  version:
+    description: Resolved version label used in the DMG filename.
+    value: ${{ steps.package.outputs.version }}
+  dmg-path:
+    description: Path to the packaged DMG file.
+    value: ${{ steps.package.outputs.dmg-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Show Xcode environment
+      shell: bash
+      run: |
+        uname -m
+        xcodebuild -version
+
+    - name: Run unit tests
+      shell: bash
+      run: |
+        xcodebuild \
+          -project Ciaccona.xcodeproj \
+          -scheme Ciaccona \
+          -configuration Debug \
+          -destination 'platform=macOS,arch=arm64' \
+          -derivedDataPath build/TestDerivedData \
+          ARCHS=arm64 \
+          ONLY_ACTIVE_ARCH=NO \
+          CODE_SIGN_IDENTITY="-" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          DEVELOPMENT_TEAM="" \
+          test
+
+    - name: Build Release app (arm64)
+      shell: bash
+      run: |
+        xcodebuild \
+          -project Ciaccona.xcodeproj \
+          -scheme Ciaccona \
+          -configuration Release \
+          -destination 'platform=macOS,arch=arm64' \
+          -derivedDataPath build/DerivedData \
+          ARCHS=arm64 \
+          ONLY_ACTIVE_ARCH=NO \
+          CODE_SIGN_IDENTITY="-" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          DEVELOPMENT_TEAM="" \
+          build
+
+        APP_PATH="build/DerivedData/Build/Products/Release/Ciaccona.app"
+        codesign --force --deep --sign - --entitlements Ciaccona/App/Ciaccona.entitlements "$APP_PATH"
+        file "$APP_PATH/Contents/MacOS/Ciaccona"
+
+    - name: Package DMG
+      id: package
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        APP_PATH="build/DerivedData/Build/Products/Release/Ciaccona.app"
+        if [[ -n "$INPUT_VERSION" ]]; then
+          VERSION="$INPUT_VERSION"
+        else
+          VERSION="v$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")"
+        fi
+
+        DMG_NAME="Ciaccona-${VERSION}-arm64.dmg"
+        STAGING_DIR="build/dmg-staging"
+        rm -rf "$STAGING_DIR"
+        mkdir -p "$STAGING_DIR"
+
+        ditto "$APP_PATH" "$STAGING_DIR/Ciaccona.app"
+        ln -s /Applications "$STAGING_DIR/Applications"
+
+        hdiutil create \
+          -volname "Ciaccona" \
+          -srcfolder "$STAGING_DIR" \
+          -ov \
+          -format ULFO \
+          "build/${DMG_NAME}"
+
+        (cd build && shasum -a 256 "${DMG_NAME}" > "${DMG_NAME}.sha256")
+        ls -lh build/*.dmg build/*.sha256
+
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "dmg-path=build/${DMG_NAME}" >> "$GITHUB_OUTPUT"

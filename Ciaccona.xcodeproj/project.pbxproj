@@ -1,0 +1,565 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		10C4399CE5A2B79D16D927B6 /* AudioDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24370D7459752B6EE4061F97 /* AudioDevice.swift */; };
+		18F0D65B2A669222C7F69A74 /* GlobalOutputSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7FE43A82CFAB8FED1AB0B7C /* GlobalOutputSection.swift */; };
+		1DD10D392E54EFE1126FF060 /* ServiceManagement.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 19292AE9E23BFB0F133E7438 /* ServiceManagement.framework */; };
+		1E264C79F83C9FEB12BCE8E2 /* AudioControlActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF895B47CAF172F02D3E56AD /* AudioControlActor.swift */; };
+		38832B19CEA0747F32BD1613 /* CiacconaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8835C8651E67F20972DF34 /* CiacconaApp.swift */; };
+		3F698711846CDE0612319F92 /* RoutingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5A6D31AC9A462C3C9121CCA /* RoutingEngine.swift */; };
+		4187FB994C1486DDB0E17325 /* AudioObject+Listener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18B6D0C3EF9C3734BB79F643 /* AudioObject+Listener.swift */; };
+		46D2EA810DD63CD676069DDD /* RTRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35D687881EB520A9B3E39AD /* RTRenderer.swift */; };
+		4827BEF90211475F97C63C25 /* AppAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0D9F85468E346D6F61F9E2A /* AppAudioSession.swift */; };
+		4EDF99AC558E4AEDE55405B5 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F97AAD83C3328F61D44E10AC /* AudioToolbox.framework */; };
+		5F1C54DD7D6DEC46EFA56810 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1B44298C00E696F5EFCF0189 /* Accelerate.framework */; };
+		6C291D99F09E65A082CBDC99 /* DeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5D958F6F0381667A65148F /* DeviceManager.swift */; };
+		6ED3707E6D2D2B527449B08E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2203ABBF9DD14B7817A0C6D8 /* SettingsView.swift */; };
+		6F580FF53EC23D04CE718A11 /* PermissionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE3C13A214F5AA9E1E999D8F /* PermissionGate.swift */; };
+		776E2629B2E0F3CD739A3B65 /* AppGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A321638D1445F3E93EC58445 /* AppGroupingTests.swift */; };
+		85B1E4381055401E28C79C09 /* MenuPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C16A3C9279C1537CAC870D9 /* MenuPanelView.swift */; };
+		8865398F78408D173072244B /* AppGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A4CDD295D5AF2093000541F /* AppGrouping.swift */; };
+		89D426630FA7273F418BF6D7 /* RTRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D1918D851CFBEE4F05F780 /* RTRendererTests.swift */; };
+		8F02C25421D2F94F12831726 /* RuleStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30B3BC63FBEFF2E101F0337 /* RuleStoreTests.swift */; };
+		90FD79070831D16873CA31C4 /* RuleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0B03AE60866747996F8FC5 /* RuleStore.swift */; };
+		977954331B7622584C646249 /* AudioProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7440D59803132615FC913FB9 /* AudioProcess.swift */; };
+		A1B2C3D4E5F60718293A4B51 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B52 /* Localization.swift */; };
+		A1B2C3D4E5F60718293A4B53 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B54 /* Localizable.xcstrings */; };
+		A1B2C3D4E5F60718293A4B55 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B56 /* InfoPlist.xcstrings */; };
+		A2816DC8F74EBF1A13EE11CC /* AudioObjectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60F27D88E230B3AC2A28E3B3 /* AudioObjectTests.swift */; };
+		B1A53482A10F05C44B43EF96 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A669376FCD50C70B2D37EF4F /* CoreAudio.framework */; };
+		B1A94B87831E8C77B89699D4 /* AggregateDeviceBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FC79578EDECA1542A63FFC /* AggregateDeviceBuilder.swift */; };
+		B398F5B6E4728AF31FCACC58 /* TapBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FBCDDD117C67535A924492C /* TapBuilder.swift */; };
+		B72C914DCE0018BF286523F0 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B1E514E1B20C17BF54D150 /* AppState.swift */; };
+		A1B2C3D4E5F601234567890A /* SingleInstanceGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F601234567890B /* SingleInstanceGuard.swift */; };
+		BC81B84938C6BF8EBCFECC6E /* CoreAudioError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58E995EBA1B66FE990472D6B /* CoreAudioError.swift */; };
+		BE47E11E170F40A8E74EFC5C /* AudioObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0B3C89AE0C66CD2AFD66598 /* AudioObject.swift */; };
+		C7476244355B6C9CD56C99DC /* PermissionWaitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D79C04D414ADC8985B85F92 /* PermissionWaitView.swift */; };
+		C8C680E787D8CC11C019DFB2 /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79844CCF04CDE88224569493 /* ProcessMonitor.swift */; };
+		CF2F36F0E6CF72012777352B /* AppRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57AE3E529CDD7ADF2B1CC05A /* AppRowView.swift */; };
+		D1A2B3C4D5E6F708192A3B4C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D2A2B3C4D5E6F708192A3B4D /* Assets.xcassets */; };
+		D7902E1D6E9542CC04A0CBF0 /* RoutingDecisionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E53D465EC7A9DD03EC384F /* RoutingDecisionTests.swift */; };
+		DC9CDA59DCBA82A16DE3309F /* DevicePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75013F4B3E25A282C4BE66A6 /* DevicePicker.swift */; };
+		F38BBCF4FBBF94D9FB72503E /* AVFAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5BD0C6C77D9FD14BCF0FC574 /* AVFAudio.framework */; };
+		F5F18AC71B26F64148EB47E1 /* GlobalVolumeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A83AED95F4E64A441ABCD52F /* GlobalVolumeController.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		878D8712EFCCB082694A3B78 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5FADD2FC36C5E1A7E8D23F9E;
+			remoteInfo = Ciaccona;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0A5D958F6F0381667A65148F /* DeviceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeviceManager.swift; path = Ciaccona/Services/DeviceManager.swift; sourceTree = "<group>"; };
+		0FBCDDD117C67535A924492C /* TapBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TapBuilder.swift; path = Ciaccona/Audio/TapBuilder.swift; sourceTree = "<group>"; };
+		18B6D0C3EF9C3734BB79F643 /* AudioObject+Listener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "AudioObject+Listener.swift"; path = "Ciaccona/CoreAudioWrapper/AudioObject+Listener.swift"; sourceTree = "<group>"; };
+		19292AE9E23BFB0F133E7438 /* ServiceManagement.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ServiceManagement.framework; path = System/Library/Frameworks/ServiceManagement.framework; sourceTree = SDKROOT; };
+		19FC79578EDECA1542A63FFC /* AggregateDeviceBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AggregateDeviceBuilder.swift; path = Ciaccona/Audio/AggregateDeviceBuilder.swift; sourceTree = "<group>"; };
+		1B44298C00E696F5EFCF0189 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
+		1C16A3C9279C1537CAC870D9 /* MenuPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MenuPanelView.swift; path = Ciaccona/UI/MenuPanelView.swift; sourceTree = "<group>"; };
+		2203ABBF9DD14B7817A0C6D8 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SettingsView.swift; path = Ciaccona/UI/SettingsView.swift; sourceTree = "<group>"; };
+		24370D7459752B6EE4061F97 /* AudioDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AudioDevice.swift; path = Ciaccona/CoreAudioWrapper/AudioDevice.swift; sourceTree = "<group>"; };
+		3D79C04D414ADC8985B85F92 /* PermissionWaitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PermissionWaitView.swift; path = Ciaccona/UI/PermissionWaitView.swift; sourceTree = "<group>"; };
+		52B1E514E1B20C17BF54D150 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppState.swift; path = Ciaccona/App/AppState.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F601234567890B /* SingleInstanceGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SingleInstanceGuard.swift; path = Ciaccona/App/SingleInstanceGuard.swift; sourceTree = "<group>"; };
+		57AE3E529CDD7ADF2B1CC05A /* AppRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppRowView.swift; path = Ciaccona/UI/AppRowView.swift; sourceTree = "<group>"; };
+		58E995EBA1B66FE990472D6B /* CoreAudioError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoreAudioError.swift; path = Ciaccona/CoreAudioWrapper/CoreAudioError.swift; sourceTree = "<group>"; };
+		5BD0C6C77D9FD14BCF0FC574 /* AVFAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFAudio.framework; path = System/Library/Frameworks/AVFAudio.framework; sourceTree = SDKROOT; };
+		60F27D88E230B3AC2A28E3B3 /* AudioObjectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AudioObjectTests.swift; path = CiacconaTests/AudioObjectTests.swift; sourceTree = "<group>"; };
+		7440D59803132615FC913FB9 /* AudioProcess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AudioProcess.swift; path = Ciaccona/CoreAudioWrapper/AudioProcess.swift; sourceTree = "<group>"; };
+		75013F4B3E25A282C4BE66A6 /* DevicePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DevicePicker.swift; path = Ciaccona/UI/DevicePicker.swift; sourceTree = "<group>"; };
+		79844CCF04CDE88224569493 /* ProcessMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProcessMonitor.swift; path = Ciaccona/Services/ProcessMonitor.swift; sourceTree = "<group>"; };
+		7E092A9FE5C1C6D7F860D383 /* Ciaccona.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = Ciaccona.entitlements; path = Ciaccona/App/Ciaccona.entitlements; sourceTree = "<group>"; };
+		8A4CDD295D5AF2093000541F /* AppGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppGrouping.swift; path = Ciaccona/Services/AppGrouping.swift; sourceTree = "<group>"; };
+		8B8835C8651E67F20972DF34 /* CiacconaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CiacconaApp.swift; path = Ciaccona/App/CiacconaApp.swift; sourceTree = "<group>"; };
+		92F86054B6946F5AF2164FEB /* CiacconaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CiacconaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9E65944BA2C020533225B6E6 /* Ciaccona.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ciaccona.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D4E5F60718293A4B52 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Localization.swift; path = Ciaccona/Services/Localization.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B54 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; name = Localizable.xcstrings; path = Ciaccona/Resources/Localizable.xcstrings; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B56 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; name = InfoPlist.xcstrings; path = Ciaccona/Resources/InfoPlist.xcstrings; sourceTree = "<group>"; };
+		A30B3BC63FBEFF2E101F0337 /* RuleStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RuleStoreTests.swift; path = CiacconaTests/RuleStoreTests.swift; sourceTree = "<group>"; };
+		A321638D1445F3E93EC58445 /* AppGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppGroupingTests.swift; path = CiacconaTests/AppGroupingTests.swift; sourceTree = "<group>"; };
+		A5D1918D851CFBEE4F05F780 /* RTRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RTRendererTests.swift; path = CiacconaTests/RTRendererTests.swift; sourceTree = "<group>"; };
+		A669376FCD50C70B2D37EF4F /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
+		A83AED95F4E64A441ABCD52F /* GlobalVolumeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GlobalVolumeController.swift; path = Ciaccona/Services/GlobalVolumeController.swift; sourceTree = "<group>"; };
+		C0B3C89AE0C66CD2AFD66598 /* AudioObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AudioObject.swift; path = Ciaccona/CoreAudioWrapper/AudioObject.swift; sourceTree = "<group>"; };
+		C35D687881EB520A9B3E39AD /* RTRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RTRenderer.swift; path = Ciaccona/Audio/RTRenderer.swift; sourceTree = "<group>"; };
+		C7FE43A82CFAB8FED1AB0B7C /* GlobalOutputSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GlobalOutputSection.swift; path = Ciaccona/UI/GlobalOutputSection.swift; sourceTree = "<group>"; };
+		D2A2B3C4D5E6F708192A3B4D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Ciaccona/Resources/Assets.xcassets; sourceTree = "<group>"; };
+		D94404E671524086B6B9CA2C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = Ciaccona/App/Info.plist; sourceTree = "<group>"; };
+		DC0B03AE60866747996F8FC5 /* RuleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RuleStore.swift; path = Ciaccona/Services/RuleStore.swift; sourceTree = "<group>"; };
+		DE3C13A214F5AA9E1E999D8F /* PermissionGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PermissionGate.swift; path = Ciaccona/Services/PermissionGate.swift; sourceTree = "<group>"; };
+		E5A6D31AC9A462C3C9121CCA /* RoutingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RoutingEngine.swift; path = Ciaccona/Services/RoutingEngine.swift; sourceTree = "<group>"; };
+		E5E53D465EC7A9DD03EC384F /* RoutingDecisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RoutingDecisionTests.swift; path = CiacconaTests/RoutingDecisionTests.swift; sourceTree = "<group>"; };
+		F0D9F85468E346D6F61F9E2A /* AppAudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppAudioSession.swift; path = Ciaccona/Audio/AppAudioSession.swift; sourceTree = "<group>"; };
+		F97AAD83C3328F61D44E10AC /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		FF895B47CAF172F02D3E56AD /* AudioControlActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AudioControlActor.swift; path = Ciaccona/Services/AudioControlActor.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		56BAF137DAAFD967197255D3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1A53482A10F05C44B43EF96 /* CoreAudio.framework in Frameworks */,
+				4EDF99AC558E4AEDE55405B5 /* AudioToolbox.framework in Frameworks */,
+				F38BBCF4FBBF94D9FB72503E /* AVFAudio.framework in Frameworks */,
+				5F1C54DD7D6DEC46EFA56810 /* Accelerate.framework in Frameworks */,
+				1DD10D392E54EFE1126FF060 /* ServiceManagement.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		70069BCF9F458A3D8EA01D11 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		08D0EDBC3B9033D58E74B944 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				FF895B47CAF172F02D3E56AD /* AudioControlActor.swift */,
+				0A5D958F6F0381667A65148F /* DeviceManager.swift */,
+				A83AED95F4E64A441ABCD52F /* GlobalVolumeController.swift */,
+				79844CCF04CDE88224569493 /* ProcessMonitor.swift */,
+				8A4CDD295D5AF2093000541F /* AppGrouping.swift */,
+				E5A6D31AC9A462C3C9121CCA /* RoutingEngine.swift */,
+				DC0B03AE60866747996F8FC5 /* RuleStore.swift */,
+				DE3C13A214F5AA9E1E999D8F /* PermissionGate.swift */,
+				A1B2C3D4E5F60718293A4B52 /* Localization.swift */,
+			);
+			name = Services;
+			sourceTree = "<group>";
+		};
+		13FD097EC30613C19BC1D0C3 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				1C16A3C9279C1537CAC870D9 /* MenuPanelView.swift */,
+				C7FE43A82CFAB8FED1AB0B7C /* GlobalOutputSection.swift */,
+				57AE3E529CDD7ADF2B1CC05A /* AppRowView.swift */,
+				75013F4B3E25A282C4BE66A6 /* DevicePicker.swift */,
+				3D79C04D414ADC8985B85F92 /* PermissionWaitView.swift */,
+				2203ABBF9DD14B7817A0C6D8 /* SettingsView.swift */,
+			);
+			name = UI;
+			sourceTree = "<group>";
+		};
+		175C932161BEBF3B8BB1F58C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A669376FCD50C70B2D37EF4F /* CoreAudio.framework */,
+				F97AAD83C3328F61D44E10AC /* AudioToolbox.framework */,
+				5BD0C6C77D9FD14BCF0FC574 /* AVFAudio.framework */,
+				1B44298C00E696F5EFCF0189 /* Accelerate.framework */,
+				19292AE9E23BFB0F133E7438 /* ServiceManagement.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		18D7C6E2320C9938A88760E2 /* Ciaccona */ = {
+			isa = PBXGroup;
+			children = (
+				E5299350CAA840337F80FD83 /* App */,
+				13FD097EC30613C19BC1D0C3 /* UI */,
+				08D0EDBC3B9033D58E74B944 /* Services */,
+				62AF428E7314A9DEA8AF22F3 /* Audio */,
+				E979C7B8500D8AAEA3CA996D /* CoreAudioWrapper */,
+				D2A2B3C4D5E6F708192A3B4D /* Assets.xcassets */,
+				A1B2C3D4E5F60718293A4B54 /* Localizable.xcstrings */,
+				A1B2C3D4E5F60718293A4B56 /* InfoPlist.xcstrings */,
+			);
+			name = Ciaccona;
+			sourceTree = "<group>";
+		};
+		5928955287B8089ED2177128 = {
+			isa = PBXGroup;
+			children = (
+				18D7C6E2320C9938A88760E2 /* Ciaccona */,
+				9BAE8B21CBDD9F93D02D0E9A /* CiacconaTests */,
+				175C932161BEBF3B8BB1F58C /* Frameworks */,
+				BF7A2D27A78D590BDEF15AF2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		62AF428E7314A9DEA8AF22F3 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				F0D9F85468E346D6F61F9E2A /* AppAudioSession.swift */,
+				19FC79578EDECA1542A63FFC /* AggregateDeviceBuilder.swift */,
+				0FBCDDD117C67535A924492C /* TapBuilder.swift */,
+				C35D687881EB520A9B3E39AD /* RTRenderer.swift */,
+			);
+			name = Audio;
+			sourceTree = "<group>";
+		};
+		9BAE8B21CBDD9F93D02D0E9A /* CiacconaTests */ = {
+			isa = PBXGroup;
+			children = (
+				A321638D1445F3E93EC58445 /* AppGroupingTests.swift */,
+				60F27D88E230B3AC2A28E3B3 /* AudioObjectTests.swift */,
+				E5E53D465EC7A9DD03EC384F /* RoutingDecisionTests.swift */,
+				A30B3BC63FBEFF2E101F0337 /* RuleStoreTests.swift */,
+				A5D1918D851CFBEE4F05F780 /* RTRendererTests.swift */,
+			);
+			name = CiacconaTests;
+			sourceTree = "<group>";
+		};
+		BF7A2D27A78D590BDEF15AF2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9E65944BA2C020533225B6E6 /* Ciaccona.app */,
+				92F86054B6946F5AF2164FEB /* CiacconaTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E5299350CAA840337F80FD83 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				8B8835C8651E67F20972DF34 /* CiacconaApp.swift */,
+				52B1E514E1B20C17BF54D150 /* AppState.swift */,
+				A1B2C3D4E5F601234567890B /* SingleInstanceGuard.swift */,
+				D94404E671524086B6B9CA2C /* Info.plist */,
+				7E092A9FE5C1C6D7F860D383 /* Ciaccona.entitlements */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		E979C7B8500D8AAEA3CA996D /* CoreAudioWrapper */ = {
+			isa = PBXGroup;
+			children = (
+				C0B3C89AE0C66CD2AFD66598 /* AudioObject.swift */,
+				18B6D0C3EF9C3734BB79F643 /* AudioObject+Listener.swift */,
+				24370D7459752B6EE4061F97 /* AudioDevice.swift */,
+				7440D59803132615FC913FB9 /* AudioProcess.swift */,
+				58E995EBA1B66FE990472D6B /* CoreAudioError.swift */,
+			);
+			name = CoreAudioWrapper;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5FADD2FC36C5E1A7E8D23F9E /* Ciaccona */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E850913E5F419DF1836B1B18 /* Build configuration list for PBXNativeTarget "Ciaccona" */;
+			buildPhases = (
+				869AA75568406BC6181D282D /* Sources */,
+				56BAF137DAAFD967197255D3 /* Frameworks */,
+				77417434AB4C68AD87C05857 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Ciaccona;
+			packageProductDependencies = (
+			);
+			productName = Ciaccona;
+			productReference = 9E65944BA2C020533225B6E6 /* Ciaccona.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A3091DC33B86DF60BB58959D /* CiacconaTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5736B0A2BE3429717885D91C /* Build configuration list for PBXNativeTarget "CiacconaTests" */;
+			buildPhases = (
+				71AFA7AE312CEA64B8800D83 /* Sources */,
+				70069BCF9F458A3D8EA01D11 /* Frameworks */,
+				8F48A2A39A0F90551A038F9E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				11024C99F7486064F381BBBB /* PBXTargetDependency */,
+			);
+			name = CiacconaTests;
+			packageProductDependencies = (
+			);
+			productName = CiacconaTests;
+			productReference = 92F86054B6946F5AF2164FEB /* CiacconaTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2660;
+			};
+			buildConfigurationList = CB7CBE0C3B42E7D081FECC31 /* Build configuration list for PBXProject "Ciaccona" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				"zh-Hans",
+				Base,
+			);
+			mainGroup = 5928955287B8089ED2177128;
+			productRefGroup = BF7A2D27A78D590BDEF15AF2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5FADD2FC36C5E1A7E8D23F9E /* Ciaccona */,
+				A3091DC33B86DF60BB58959D /* CiacconaTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		77417434AB4C68AD87C05857 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D1A2B3C4D5E6F708192A3B4C /* Assets.xcassets in Resources */,
+				A1B2C3D4E5F60718293A4B53 /* Localizable.xcstrings in Resources */,
+				A1B2C3D4E5F60718293A4B55 /* InfoPlist.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8F48A2A39A0F90551A038F9E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		71AFA7AE312CEA64B8800D83 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				776E2629B2E0F3CD739A3B65 /* AppGroupingTests.swift in Sources */,
+				A2816DC8F74EBF1A13EE11CC /* AudioObjectTests.swift in Sources */,
+				D7902E1D6E9542CC04A0CBF0 /* RoutingDecisionTests.swift in Sources */,
+				8F02C25421D2F94F12831726 /* RuleStoreTests.swift in Sources */,
+				89D426630FA7273F418BF6D7 /* RTRendererTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		869AA75568406BC6181D282D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				38832B19CEA0747F32BD1613 /* CiacconaApp.swift in Sources */,
+				B72C914DCE0018BF286523F0 /* AppState.swift in Sources */,
+				A1B2C3D4E5F601234567890A /* SingleInstanceGuard.swift in Sources */,
+				85B1E4381055401E28C79C09 /* MenuPanelView.swift in Sources */,
+				18F0D65B2A669222C7F69A74 /* GlobalOutputSection.swift in Sources */,
+				CF2F36F0E6CF72012777352B /* AppRowView.swift in Sources */,
+				DC9CDA59DCBA82A16DE3309F /* DevicePicker.swift in Sources */,
+				C7476244355B6C9CD56C99DC /* PermissionWaitView.swift in Sources */,
+				6ED3707E6D2D2B527449B08E /* SettingsView.swift in Sources */,
+				1E264C79F83C9FEB12BCE8E2 /* AudioControlActor.swift in Sources */,
+				6C291D99F09E65A082CBDC99 /* DeviceManager.swift in Sources */,
+				F5F18AC71B26F64148EB47E1 /* GlobalVolumeController.swift in Sources */,
+				C8C680E787D8CC11C019DFB2 /* ProcessMonitor.swift in Sources */,
+				8865398F78408D173072244B /* AppGrouping.swift in Sources */,
+				3F698711846CDE0612319F92 /* RoutingEngine.swift in Sources */,
+				90FD79070831D16873CA31C4 /* RuleStore.swift in Sources */,
+				A1B2C3D4E5F60718293A4B51 /* Localization.swift in Sources */,
+				6F580FF53EC23D04CE718A11 /* PermissionGate.swift in Sources */,
+				4827BEF90211475F97C63C25 /* AppAudioSession.swift in Sources */,
+				B1A94B87831E8C77B89699D4 /* AggregateDeviceBuilder.swift in Sources */,
+				B398F5B6E4728AF31FCACC58 /* TapBuilder.swift in Sources */,
+				46D2EA810DD63CD676069DDD /* RTRenderer.swift in Sources */,
+				BE47E11E170F40A8E74EFC5C /* AudioObject.swift in Sources */,
+				4187FB994C1486DDB0E17325 /* AudioObject+Listener.swift in Sources */,
+				10C4399CE5A2B79D16D927B6 /* AudioDevice.swift in Sources */,
+				977954331B7622584C646249 /* AudioProcess.swift in Sources */,
+				BC81B84938C6BF8EBCFECC6E /* CoreAudioError.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		11024C99F7486064F381BBBB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5FADD2FC36C5E1A7E8D23F9E /* Ciaccona */;
+			targetProxy = 878D8712EFCCB082694A3B78 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0B861AF66ECE710E9705AE9F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6729867272;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.coldthunder11.ciacconaTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ciaccona.app/Contents/MacOS/Ciaccona";
+			};
+			name = Release;
+		};
+		0F9FC8EE2C99E07A9753399D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Ciaccona/App/Ciaccona.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6729867272;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Ciaccona/App/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.coldthunder11.ciaccona;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		1483FA26082F598A11F242FF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_OPTIMIZATION = space;
+				CODE_SIGN_ENTITLEMENTS = Ciaccona/App/Ciaccona.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6729867272;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Ciaccona/App/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.coldthunder11.ciaccona;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRIP_STYLE = all;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		74552497E519648B383D6A90 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6729867272;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.coldthunder11.ciacconaTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ciaccona.app/Contents/MacOS/Ciaccona";
+			};
+			name = Debug;
+		};
+		7BF40F069D95C38DE60AA602 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = YES;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEPLOYMENT_POSTPROCESSING = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				SDKROOT = macosx;
+				STRIP_INSTALLED_PRODUCT = YES;
+				STRIP_SWIFT_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		EC86DC4F4B4C60C3EC031655 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5736B0A2BE3429717885D91C /* Build configuration list for PBXNativeTarget "CiacconaTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				74552497E519648B383D6A90 /* Debug */,
+				0B861AF66ECE710E9705AE9F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CB7CBE0C3B42E7D081FECC31 /* Build configuration list for PBXProject "Ciaccona" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EC86DC4F4B4C60C3EC031655 /* Debug */,
+				7BF40F069D95C38DE60AA602 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E850913E5F419DF1836B1B18 /* Build configuration list for PBXNativeTarget "Ciaccona" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0F9FC8EE2C99E07A9753399D /* Debug */,
+				1483FA26082F598A11F242FF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}

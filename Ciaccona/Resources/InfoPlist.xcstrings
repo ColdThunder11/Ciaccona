@@ -1,0 +1,35 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Ciaccona"
+          }
+        }
+      }
+    },
+    "NSAudioCaptureUsageDescription" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ciaccona needs \"System Audio Recording\" permission to adjust volume and output devices per app. It cannot run without this permission."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ciaccona 需要“系统录音”权限来单独调整各应用的音量和输出设备。没有此权限无法运行。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
