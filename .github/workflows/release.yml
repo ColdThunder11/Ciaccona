@@ -18,44 +18,66 @@ on:
         required: false
         type: boolean
         default: false
+      notarize:
+        description: Submit signed app and DMG for Apple notarization
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
 
 jobs:
   release:
-    name: Build & Publish macOS ARM64 DMG
+    name: Build, Sign & Publish macOS ARM64 DMG
     runs-on: macos-26
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build and package DMG
+      - name: Build, sign and package DMG
         id: build
         uses: ./.github/actions/build-dmg
         with:
           version: ${{ inputs.tag }}
+          sign: "true"
+          notarize: ${{ inputs.notarize }}
+          certificate-p12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          certificate-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          notary-key-p8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          notary-key-id: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          notary-issuer-id: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          apple-id: ${{ secrets.APPLE_ID }}
+          apple-app-password: ${{ secrets.APPLE_APP_PASSWORD }}
+          apple-team-id: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
           name: Ciaccona-${{ steps.build.outputs.version }}-arm64-dmg
-          path: |
-            build/*.dmg
-            build/*.sha256
+          path: ${{ steps.build.outputs.dmg-path }}
+          compression-level: 0
+
+      - name: Upload SHA-256 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ciaccona-${{ steps.build.outputs.version }}-arm64-dmg-sha256
+          path: ${{ steps.build.outputs.sha256-path }}
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.build.outputs.version }}
+          DMG_PATH: ${{ steps.build.outputs.dmg-path }}
+          SHA256_PATH: ${{ steps.build.outputs.sha256-path }}
           IS_PRERELEASE: ${{ inputs.prerelease }}
           IS_DRAFT: ${{ inputs.draft }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" build/*.dmg build/*.sha256 --clobber
+            gh release upload "$TAG" "$DMG_PATH" "$SHA256_PATH" --clobber
           else
-            ARGS=(release create "$TAG" build/*.dmg build/*.sha256 --target "${{ github.sha }}" --title "$TAG" --generate-notes)
+            ARGS=(release create "$TAG" "$DMG_PATH" "$SHA256_PATH" --target "${{ github.sha }}" --title "$TAG" --generate-notes)
             if [[ "$IS_PRERELEASE" == "true" ]]; then
               ARGS+=(--prerelease)
             fi

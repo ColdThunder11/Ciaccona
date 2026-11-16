@@ -1,9 +1,49 @@
 name: Build macOS ARM64 DMG
-description: Runs unit tests, builds Ciaccona (Release, arm64), ad-hoc signs it, and packages a DMG with SHA-256 checksum.
+description: Runs unit tests, builds Ciaccona (Release, arm64), signs it (ad-hoc or Developer ID + notarization), and packages a DMG with SHA-256 checksum.
 
 inputs:
   version:
     description: Optional version label for the DMG filename (defaults to v<CFBundleShortVersionString>).
+    required: false
+    default: ""
+  sign:
+    description: Sign the app and DMG with a Developer ID Application certificate.
+    required: false
+    default: "false"
+  notarize:
+    description: Submit signed app and DMG for Apple notarization and staple tickets (requires sign=true).
+    required: false
+    default: "false"
+  certificate-p12:
+    description: Base64-encoded Developer ID Application .p12 certificate.
+    required: false
+    default: ""
+  certificate-password:
+    description: Password for the .p12 certificate.
+    required: false
+    default: ""
+  notary-key-p8:
+    description: Base64-encoded App Store Connect API .p8 key for notarytool.
+    required: false
+    default: ""
+  notary-key-id:
+    description: App Store Connect API Key ID.
+    required: false
+    default: ""
+  notary-issuer-id:
+    description: App Store Connect API Issuer ID.
+    required: false
+    default: ""
+  apple-id:
+    description: Apple ID email (alternative to App Store Connect API key).
+    required: false
+    default: ""
+  apple-app-password:
+    description: App-specific password for Apple ID notarization.
+    required: false
+    default: ""
+  apple-team-id:
+    description: Apple Developer Team ID for Apple ID notarization.
     required: false
     default: ""
 
@@ -14,6 +54,9 @@ outputs:
   dmg-path:
     description: Path to the packaged DMG file.
     value: ${{ steps.package.outputs.dmg-path }}
+  sha256-path:
+    description: Path to the SHA-256 checksum file.
+    value: ${{ steps.package.outputs.sha256-path }}
 
 runs:
   using: composite
@@ -23,6 +66,42 @@ runs:
       run: |
         uname -m
         xcodebuild -version
+
+    - name: Validate signing inputs
+      if: ${{ inputs.sign == 'true' }}
+      shell: bash
+      env:
+        NOTARIZE: ${{ inputs.notarize }}
+        APPLE_CERTIFICATE_P12: ${{ inputs.certificate-p12 }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ inputs.certificate-password }}
+        APPLE_NOTARY_KEY_P8: ${{ inputs.notary-key-p8 }}
+        APPLE_NOTARY_KEY_ID: ${{ inputs.notary-key-id }}
+        APPLE_NOTARY_ISSUER_ID: ${{ inputs.notary-issuer-id }}
+        APPLE_ID: ${{ inputs.apple-id }}
+        APPLE_APP_PASSWORD: ${{ inputs.apple-app-password }}
+        APPLE_TEAM_ID: ${{ inputs.apple-team-id }}
+      run: |
+        if [[ -z "$APPLE_CERTIFICATE_P12" || -z "$APPLE_CERTIFICATE_PASSWORD" ]]; then
+          echo "::error::Missing required GitHub Secrets: APPLE_CERTIFICATE_P12 and APPLE_CERTIFICATE_PASSWORD."
+          exit 1
+        fi
+
+        if [[ "$NOTARIZE" == "true" ]]; then
+          HAS_API_KEY=false
+          HAS_APPLE_ID=false
+
+          if [[ -n "$APPLE_NOTARY_KEY_P8" && -n "$APPLE_NOTARY_KEY_ID" && -n "$APPLE_NOTARY_ISSUER_ID" ]]; then
+            HAS_API_KEY=true
+          fi
+          if [[ -n "$APPLE_ID" && -n "$APPLE_APP_PASSWORD" && -n "$APPLE_TEAM_ID" ]]; then
+            HAS_APPLE_ID=true
+          fi
+
+          if [[ "$HAS_API_KEY" != "true" && "$HAS_APPLE_ID" != "true" ]]; then
+            echo "::error::Notarization requires either (APPLE_NOTARY_KEY_P8, APPLE_NOTARY_KEY_ID, APPLE_NOTARY_ISSUER_ID) or (APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID)."
+            exit 1
+          fi
+        fi
 
     - name: Run unit tests
       shell: bash
@@ -41,8 +120,59 @@ runs:
           DEVELOPMENT_TEAM="" \
           test
 
-    - name: Build Release app (arm64)
+    - name: Import Developer ID certificate
+      if: ${{ inputs.sign == 'true' }}
       shell: bash
+      env:
+        APPLE_CERTIFICATE_P12: ${{ inputs.certificate-p12 }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ inputs.certificate-password }}
+      run: |
+        KEYCHAIN_PATH="$RUNNER_TEMP/ciaccona-signing.keychain-db"
+        KEYCHAIN_PASS="$(uuidgen)"
+        CERT_PATH="$RUNNER_TEMP/developer-id.p12"
+        echo "::add-mask::$KEYCHAIN_PASS"
+
+        printf '%s' "$APPLE_CERTIFICATE_P12" | tr -d '[:space:]' | base64 --decode > "$CERT_PATH"
+
+        security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+        security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+        security import "$CERT_PATH" \
+          -P "$APPLE_CERTIFICATE_PASSWORD" \
+          -A -t cert -f pkcs12 \
+          -k "$KEYCHAIN_PATH"
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+        EXISTING_KEYCHAINS=()
+        while IFS= read -r line; do
+          line="${line#"${line%%[![:space:]]*}"}"
+          line="${line%\"}"
+          line="${line#\"}"
+          [[ -n "$line" ]] && EXISTING_KEYCHAINS+=("$line")
+        done < <(security list-keychains -d user)
+        security list-keychains -d user -s "$KEYCHAIN_PATH" "${EXISTING_KEYCHAINS[@]}"
+
+        SIGN_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F'"' '/Developer ID Application:/ { print $2; exit }')"
+        if [[ -z "$SIGN_IDENTITY" ]]; then
+          echo "::error::No 'Developer ID Application' identity found in the imported .p12 certificate."
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
+          exit 1
+        fi
+
+        echo "Using signing identity: $SIGN_IDENTITY"
+        echo "SIGN_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+        echo "SIGN_IDENTITY=$SIGN_IDENTITY" >> "$GITHUB_ENV"
+
+    - name: Build and sign Release app (arm64)
+      shell: bash
+      env:
+        SIGN: ${{ inputs.sign }}
+        NOTARIZE: ${{ inputs.notarize }}
+        APPLE_NOTARY_KEY_P8: ${{ inputs.notary-key-p8 }}
+        APPLE_NOTARY_KEY_ID: ${{ inputs.notary-key-id }}
+        APPLE_NOTARY_ISSUER_ID: ${{ inputs.notary-issuer-id }}
+        APPLE_ID: ${{ inputs.apple-id }}
+        APPLE_APP_PASSWORD: ${{ inputs.apple-app-password }}
+        APPLE_TEAM_ID: ${{ inputs.apple-team-id }}
       run: |
         xcodebuild \
           -project Ciaccona.xcodeproj \
@@ -59,14 +189,44 @@ runs:
           build
 
         APP_PATH="build/DerivedData/Build/Products/Release/Ciaccona.app"
-        codesign --force --deep --sign - --entitlements Ciaccona/App/Ciaccona.entitlements "$APP_PATH"
         file "$APP_PATH/Contents/MacOS/Ciaccona"
+
+        if [[ "$SIGN" == "true" ]]; then
+          codesign --force --deep --options runtime --timestamp \
+            --keychain "$SIGN_KEYCHAIN_PATH" \
+            --sign "$SIGN_IDENTITY" \
+            --entitlements Ciaccona/App/Ciaccona.entitlements \
+            "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign -dv --verbose=2 "$APP_PATH" 2>&1
+
+          if [[ "$NOTARIZE" == "true" ]]; then
+            APP_ZIP="$RUNNER_TEMP/Ciaccona-notarize.zip"
+            rm -f "$APP_ZIP"
+            ditto -c -k --keepParent "$APP_PATH" "$APP_ZIP"
+            bash "${{ github.action_path }}/notarize.sh" "$APP_ZIP"
+            rm -f "$APP_ZIP"
+
+            xcrun stapler staple "$APP_PATH"
+            xcrun stapler validate "$APP_PATH"
+          fi
+        else
+          codesign --force --deep --sign - --entitlements Ciaccona/App/Ciaccona.entitlements "$APP_PATH"
+        fi
 
     - name: Package DMG
       id: package
       shell: bash
       env:
         INPUT_VERSION: ${{ inputs.version }}
+        SIGN: ${{ inputs.sign }}
+        NOTARIZE: ${{ inputs.notarize }}
+        APPLE_NOTARY_KEY_P8: ${{ inputs.notary-key-p8 }}
+        APPLE_NOTARY_KEY_ID: ${{ inputs.notary-key-id }}
+        APPLE_NOTARY_ISSUER_ID: ${{ inputs.notary-issuer-id }}
+        APPLE_ID: ${{ inputs.apple-id }}
+        APPLE_APP_PASSWORD: ${{ inputs.apple-app-password }}
+        APPLE_TEAM_ID: ${{ inputs.apple-team-id }}
       run: |
         APP_PATH="build/DerivedData/Build/Products/Release/Ciaccona.app"
         if [[ -n "$INPUT_VERSION" ]]; then
@@ -76,8 +236,10 @@ runs:
         fi
 
         DMG_NAME="Ciaccona-${VERSION}-arm64.dmg"
+        DMG_PATH="build/${DMG_NAME}"
+        SHA_PATH="${DMG_PATH}.sha256"
         STAGING_DIR="build/dmg-staging"
-        rm -rf "$STAGING_DIR"
+        rm -rf "$STAGING_DIR" "$DMG_PATH" "$SHA_PATH"
         mkdir -p "$STAGING_DIR"
 
         ditto "$APP_PATH" "$STAGING_DIR/Ciaccona.app"
@@ -88,10 +250,34 @@ runs:
           -srcfolder "$STAGING_DIR" \
           -ov \
           -format ULFO \
-          "build/${DMG_NAME}"
+          "$DMG_PATH"
+
+        if [[ "$SIGN" == "true" ]]; then
+          codesign --force --timestamp \
+            --keychain "$SIGN_KEYCHAIN_PATH" \
+            --sign "$SIGN_IDENTITY" \
+            "$DMG_PATH"
+          codesign --verify --verbose=2 "$DMG_PATH"
+
+          if [[ "$NOTARIZE" == "true" ]]; then
+            bash "${{ github.action_path }}/notarize.sh" "$DMG_PATH"
+            xcrun stapler staple "$DMG_PATH"
+            xcrun stapler validate "$DMG_PATH"
+          fi
+        fi
 
         (cd build && shasum -a 256 "${DMG_NAME}" > "${DMG_NAME}.sha256")
-        ls -lh build/*.dmg build/*.sha256
+        ls -lh "$DMG_PATH" "$SHA_PATH"
 
         echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-        echo "dmg-path=build/${DMG_NAME}" >> "$GITHUB_OUTPUT"
+        echo "dmg-path=${DMG_PATH}" >> "$GITHUB_OUTPUT"
+        echo "sha256-path=${SHA_PATH}" >> "$GITHUB_OUTPUT"
+
+    - name: Clean up signing credentials
+      if: ${{ always() && inputs.sign == 'true' }}
+      shell: bash
+      run: |
+        if [[ -n "${SIGN_KEYCHAIN_PATH:-}" ]]; then
+          security delete-keychain "$SIGN_KEYCHAIN_PATH" || true
+        fi
+        rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/notary-key.p8" "$RUNNER_TEMP/Ciaccona-notarize.zip"
