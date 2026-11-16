@@ -31,6 +31,8 @@ final class AppState {
     var canSetGlobalVolume: Bool = true
     var canMuteGlobal: Bool = true
     var isUsingSoftwareGlobalVolume: Bool = false
+    var isUsingSoftwareGlobalMute: Bool = false
+    var needsMediaKeyAccessibilityPermission: Bool = false
 
     var activeApps: [AudioApp] = []
     private(set) var playingApps: [AudioApp] = []
@@ -49,6 +51,20 @@ final class AppState {
     @ObservationIgnored private var missingIconAppIDs: Set<String> = []
     @ObservationIgnored private var rawRules: [String: AppRule] = [:]
     @ObservationIgnored private var ruleModels: [String: ObservableAppRule] = [:]
+    @ObservationIgnored private let mediaKeyMonitor = MediaKeyMonitor()
+    @ObservationIgnored private let volumeHUD = VolumeHUDWindowController()
+
+    init() {
+        mediaKeyMonitor.shouldIntercept = { [weak self] action in
+            self?.shouldInterceptMediaKey(action) ?? false
+        }
+        mediaKeyMonitor.onMediaKey = { [weak self] action, fineStep in
+            self?.handleMediaKeyAction(action, fineStep: fineStep)
+        }
+        mediaKeyMonitor.onPermissionStateChanged = { [weak self] needsPermission in
+            self?.needsMediaKeyAccessibilityPermission = needsPermission
+        }
+    }
 
     var defaultOutputDevice: AudioDevice? {
         outputDevices.first { $0.id == defaultOutputDeviceID }
@@ -95,6 +111,9 @@ final class AppState {
         if self.isUsingSoftwareGlobalVolume != snapshot.isSoftwareVolume {
             self.isUsingSoftwareGlobalVolume = snapshot.isSoftwareVolume
         }
+        if self.isUsingSoftwareGlobalMute != snapshot.isSoftwareMute {
+            self.isUsingSoftwareGlobalMute = snapshot.isSoftwareMute
+        }
     }
 
     func applyRoutingSnapshot(_ snapshot: RoutingSnapshot) {
@@ -120,8 +139,12 @@ final class AppState {
             self.rules = snapshot.rules
         }
         if self.preferences != snapshot.preferences {
+            let prevTakeOverMediaKeys = self.preferences.takeOverVolumeMediaKeys
             self.preferences = snapshot.preferences
             L10n.currentLanguage = snapshot.preferences.language
+            if prevTakeOverMediaKeys != snapshot.preferences.takeOverVolumeMediaKeys {
+                mediaKeyMonitor.setEnabled(snapshot.preferences.takeOverVolumeMediaKeys, promptIfNeeded: false)
+            }
         }
         if self.offlineAppIDs != snapshot.offlineAppIDs {
             self.offlineAppIDs = snapshot.offlineAppIDs
@@ -270,6 +293,60 @@ final class AppState {
         let engine = routingEngine
         Task { @AudioControlActor in
             engine?.updatePreferences { $0.showAllProcesses = enabled }
+        }
+    }
+
+    func setTakeOverVolumeMediaKeys(_ enabled: Bool) {
+        preferences.takeOverVolumeMediaKeys = enabled
+        mediaKeyMonitor.setEnabled(enabled, promptIfNeeded: enabled)
+        let engine = routingEngine
+        Task { @AudioControlActor in
+            engine?.updatePreferences { $0.takeOverVolumeMediaKeys = enabled }
+        }
+    }
+
+    func openMediaKeyAccessibilitySettings() {
+        mediaKeyMonitor.openAccessibilitySettings()
+    }
+
+    func stopMediaKeyMonitor() {
+        mediaKeyMonitor.setEnabled(false)
+    }
+
+    func shouldInterceptMediaKey(_ action: MediaKeyAction) -> Bool {
+        guard preferences.takeOverVolumeMediaKeys, defaultOutputDevice != nil else {
+            return false
+        }
+        switch action {
+        case .volumeUp, .volumeDown:
+            return isUsingSoftwareGlobalVolume
+        case .muteToggle:
+            return isUsingSoftwareGlobalMute
+        }
+    }
+
+    func handleMediaKeyAction(_ action: MediaKeyAction, fineStep: Bool) {
+        let step: Float = fineStep ? 0.01 : (1.0 / 16.0)
+        switch action {
+        case .volumeUp:
+            if isGlobalMuted && isUsingSoftwareGlobalMute {
+                toggleGlobalMute()
+            }
+            let next = VolumeLevel.quantize(min(1.0, globalVolume + step), max: 1.0)
+            setGlobalVolume(next)
+        case .volumeDown:
+            let next = VolumeLevel.quantize(max(0.0, globalVolume - step), max: 1.0)
+            setGlobalVolume(next)
+        case .muteToggle:
+            toggleGlobalMute()
+        }
+
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            volumeHUD.show(
+                volume: globalVolume,
+                isMuted: isGlobalMuted,
+                deviceName: defaultOutputDevice?.name ?? ""
+            )
         }
     }
 

@@ -378,4 +378,125 @@ struct RuleStoreTests {
         #expect(second.acquire(bundleIdentifier: nil, currentPID: 1002) == true)
         second.release()
     }
+
+    @Test("takeOverVolumeMediaKeys defaults to false and persists updates")
+    func mediaKeyPreferencePersistence() throws {
+        let url = makeTempFileURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+
+        let legacyJSON = """
+        {
+          "version": 1,
+          "rules": {},
+          "preferences": {
+            "pauseIdleSessions": true
+          }
+        }
+        """
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try legacyJSON.write(to: url, atomically: true, encoding: .utf8)
+
+        let store1 = RuleStore(fileURL: url)
+        #expect(store1.preferences.takeOverVolumeMediaKeys == false)
+
+        store1.updatePreferences { $0.takeOverVolumeMediaKeys = true }
+        store1.flush()
+        let store2 = RuleStore(fileURL: url)
+        #expect(store2.preferences.takeOverVolumeMediaKeys == true)
+    }
+
+    @Test("MediaKeyParser decodes volume up/down/mute events and ignores non-volume keys")
+    func mediaKeyParserDecodesAuxEvents() {
+        let upDown = (0 << 16) | (0x0A << 8)
+        let downUp = (1 << 16) | (0x0B << 8)
+        let muteDown = (7 << 16) | (0x0A << 8)
+        let brightnessDown = (2 << 16) | (0x0A << 8)
+
+        let e1 = MediaKeyParser.parse(subtype: 8, data1: upDown, modifierFlags: [])
+        #expect(e1 == MediaKeyEvent(action: .volumeUp, isKeyDown: true, isFineStep: false))
+
+        let e2 = MediaKeyParser.parse(subtype: 8, data1: downUp, modifierFlags: [.option, .shift])
+        #expect(e2 == MediaKeyEvent(action: .volumeDown, isKeyDown: false, isFineStep: true))
+
+        let e3 = MediaKeyParser.parse(subtype: 8, data1: muteDown, modifierFlags: [])
+        #expect(e3 == MediaKeyEvent(action: .muteToggle, isKeyDown: true, isFineStep: false))
+
+        #expect(MediaKeyParser.parse(subtype: 8, data1: brightnessDown, modifierFlags: []) == nil)
+        #expect(MediaKeyParser.parse(subtype: 7, data1: upDown, modifierFlags: []) == nil)
+    }
+
+    @Test("AppState intercepts media keys only when enabled and device lacks hardware control")
+    @MainActor
+    func appStateMediaKeyInterceptionAndStepping() {
+        let state = AppState()
+        let device = AudioDevice(
+            id: 42,
+            uid: "hdmi-monitor",
+            name: "HDMI Monitor",
+            transport: kAudioDeviceTransportTypeHDMI,
+            hasOutput: true,
+            outputChannelCount: 2,
+            canSetVolume: false,
+            canMute: false,
+            sampleRate: 48_000
+        )
+        state.updateDevices([device], defaultID: 42)
+        state.updateGlobalVolumeSnapshot(
+            GlobalVolumeSnapshot(
+                volume: 0.5,
+                isMuted: false,
+                canSetVolume: true,
+                canMute: true,
+                isSoftwareVolume: true,
+                isSoftwareMute: false
+            )
+        )
+
+        // Disabled by default
+        #expect(state.preferences.takeOverVolumeMediaKeys == false)
+        #expect(state.shouldInterceptMediaKey(.volumeUp) == false)
+        #expect(state.shouldInterceptMediaKey(.muteToggle) == false)
+
+        state.preferences.takeOverVolumeMediaKeys = true
+        // Intercepts volume (software), leaves mute to hardware since isSoftwareMute == false
+        #expect(state.shouldInterceptMediaKey(.volumeUp) == true)
+        #expect(state.shouldInterceptMediaKey(.volumeDown) == true)
+        #expect(state.shouldInterceptMediaKey(.muteToggle) == false)
+
+        // Switch to software mute too
+        state.updateGlobalVolumeSnapshot(
+            GlobalVolumeSnapshot(
+                volume: 0.5,
+                isMuted: true,
+                canSetVolume: true,
+                canMute: true,
+                isSoftwareVolume: true,
+                isSoftwareMute: true
+            )
+        )
+        #expect(state.shouldInterceptMediaKey(.muteToggle) == true)
+
+        // Volume up while muted unmutes and steps up by 1/16 (~0.56)
+        state.handleMediaKeyAction(.volumeUp, fineStep: false)
+        #expect(state.isGlobalMuted == false)
+        #expect(abs(state.globalVolume - 0.56) < 0.001)
+
+        // Fine step down reduces by 1%
+        state.handleMediaKeyAction(.volumeDown, fineStep: true)
+        #expect(abs(state.globalVolume - 0.55) < 0.001)
+
+        // Hardware volume device never gets intercepted
+        state.updateGlobalVolumeSnapshot(
+            GlobalVolumeSnapshot(
+                volume: 0.5,
+                isMuted: false,
+                canSetVolume: true,
+                canMute: true,
+                isSoftwareVolume: false,
+                isSoftwareMute: false
+            )
+        )
+        #expect(state.shouldInterceptMediaKey(.volumeUp) == false)
+        #expect(state.shouldInterceptMediaKey(.muteToggle) == false)
+    }
 }

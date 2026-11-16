@@ -69,6 +69,43 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
 
+            Section(L10n.tr("settings.section.accessibility", defaultValue: "Accessibility", language: lang)) {
+                Toggle(
+                    L10n.tr(
+                        "settings.take_over_media_keys",
+                        defaultValue: "Control software volume with keyboard volume keys (for devices without hardware control)",
+                        language: lang
+                    ),
+                    isOn: Binding(
+                        get: { appState.preferences.takeOverVolumeMediaKeys },
+                        set: { appState.setTakeOverVolumeMediaKeys($0) }
+                    )
+                )
+
+                if appState.preferences.takeOverVolumeMediaKeys && appState.needsMediaKeyAccessibilityPermission {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(L10n.tr(
+                            "settings.take_over_media_keys.permission_hint",
+                            defaultValue: "Accessibility permission is required to intercept keyboard volume keys.",
+                            language: lang
+                        ))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        Spacer(minLength: 4)
+                        Button(L10n.tr(
+                            "settings.take_over_media_keys.open_settings",
+                            defaultValue: "Open Settings",
+                            language: lang
+                        )) {
+                            appState.openMediaKeyAccessibilitySettings()
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+
             Section {
                 LabeledContent(
                     L10n.tr("settings.version", defaultValue: "Version", language: lang),
@@ -104,7 +141,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 390)
+        .frame(width: 500, height: 470)
         .alert(
             L10n.tr(
                 "settings.reset_routing.alert.title",

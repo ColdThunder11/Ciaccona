@@ -66,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         singleInstanceGuard.release()
+        appState.stopMediaKeyMonitor()
         let engine = routingEngine
         routingEngine = nil
         if let engine {

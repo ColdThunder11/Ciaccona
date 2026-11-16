@@ -93,6 +93,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
     var pauseIdleSessions: Bool = false
     var launchAtLogin: Bool = false
     var showAllProcesses: Bool = false
+    var takeOverVolumeMediaKeys: Bool = false
     var bufferFrameSize: AudioBufferPreset = .standard
     var language: AppLanguage = .system
 
@@ -100,12 +101,14 @@ struct AppPreferences: Codable, Equatable, Sendable {
         pauseIdleSessions: Bool = false,
         launchAtLogin: Bool = false,
         showAllProcesses: Bool = false,
+        takeOverVolumeMediaKeys: Bool = false,
         bufferFrameSize: AudioBufferPreset = .standard,
         language: AppLanguage = .system
     ) {
         self.pauseIdleSessions = pauseIdleSessions
         self.launchAtLogin = launchAtLogin
         self.showAllProcesses = showAllProcesses
+        self.takeOverVolumeMediaKeys = takeOverVolumeMediaKeys
         self.bufferFrameSize = bufferFrameSize
         self.language = language
     }
@@ -115,6 +118,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
         self.pauseIdleSessions = try container.decodeIfPresent(Bool.self, forKey: .pauseIdleSessions) ?? false
         self.launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         self.showAllProcesses = try container.decodeIfPresent(Bool.self, forKey: .showAllProcesses) ?? false
+        self.takeOverVolumeMediaKeys = try container.decodeIfPresent(Bool.self, forKey: .takeOverVolumeMediaKeys) ?? false
         self.bufferFrameSize = try container.decodeIfPresent(AudioBufferPreset.self, forKey: .bufferFrameSize) ?? .standard
         self.language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
     }

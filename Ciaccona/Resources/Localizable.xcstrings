@@ -948,6 +948,22 @@
         }
       }
     },
+    "settings.section.accessibility" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辅助功能"
+          }
+        }
+      }
+    },
     "settings.section.about" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1012,6 +1028,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "显示全部进程（包含系统服务与菜单栏程序）"
+          }
+        }
+      }
+    },
+    "settings.take_over_media_keys" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Control software volume with keyboard volume keys (for devices without hardware control)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接管系统音量媒体键（用于无硬件音量控制的输出设备）"
+          }
+        }
+      }
+    },
+    "settings.take_over_media_keys.open_settings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开设置"
+          }
+        }
+      }
+    },
+    "settings.take_over_media_keys.permission_hint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility permission is required to intercept keyboard volume keys."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要在“隐私与安全性 → 辅助功能”中授予权限后才能接管键盘音量键。"
           }
         }
       }
