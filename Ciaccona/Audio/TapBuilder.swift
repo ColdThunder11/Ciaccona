@@ -5,12 +5,14 @@ enum TapBuilder {
     static func createProcessTap(
         name: String,
         processes: [AudioObjectID],
+        tapDeviceUID: String? = nil,
         uuid: UUID = UUID(),
         muteBehavior: CATapMuteBehavior = .mutedWhenTapped
     ) throws -> AudioObjectID {
         let description = makeDescription(
             name: name,
             processes: processes,
+            tapDeviceUID: tapDeviceUID,
             uuid: uuid,
             muteBehavior: muteBehavior
         )
@@ -24,6 +26,7 @@ enum TapBuilder {
         name: String,
         excludingProcesses: [AudioObjectID] = [],
         deviceUID: String? = nil,
+        preserveMultichannel: Bool = false,
         uuid: UUID = UUID(),
         muteBehavior: CATapMuteBehavior = .unmuted
     ) throws -> AudioObjectID {
@@ -31,6 +34,7 @@ enum TapBuilder {
             name: name,
             excludingProcesses: excludingProcesses,
             deviceUID: deviceUID,
+            preserveMultichannel: preserveMultichannel,
             uuid: uuid,
             muteBehavior: muteBehavior
         )
@@ -44,12 +48,14 @@ enum TapBuilder {
         tapID: AudioObjectID,
         name: String,
         processes: [AudioObjectID],
+        tapDeviceUID: String? = nil,
         uuid: UUID,
         muteBehavior: CATapMuteBehavior = .mutedWhenTapped
     ) throws {
         let description = makeDescription(
             name: name,
             processes: processes,
+            tapDeviceUID: tapDeviceUID,
             uuid: uuid,
             muteBehavior: muteBehavior
         )
@@ -61,6 +67,7 @@ enum TapBuilder {
         name: String,
         excludingProcesses: [AudioObjectID],
         deviceUID: String? = nil,
+        preserveMultichannel: Bool = false,
         uuid: UUID,
         muteBehavior: CATapMuteBehavior = .mutedWhenTapped
     ) throws {
@@ -68,6 +75,7 @@ enum TapBuilder {
             name: name,
             excludingProcesses: excludingProcesses,
             deviceUID: deviceUID,
+            preserveMultichannel: preserveMultichannel,
             uuid: uuid,
             muteBehavior: muteBehavior
         )
@@ -87,25 +95,37 @@ enum TapBuilder {
         name: String,
         excludingProcesses: [AudioObjectID],
         deviceUID: String?,
+        preserveMultichannel: Bool,
         uuid: UUID,
         muteBehavior: CATapMuteBehavior
     ) -> CATapDescription {
-        let desc = CATapDescription(stereoGlobalTapButExcludeProcesses: excludingProcesses)
+        let desc: CATapDescription
+        if preserveMultichannel, let deviceUID, !deviceUID.isEmpty {
+            desc = CATapDescription(excludingProcesses: excludingProcesses, deviceUID: deviceUID, stream: 0)
+        } else {
+            desc = CATapDescription(stereoGlobalTapButExcludeProcesses: excludingProcesses)
+            desc.deviceUID = deviceUID
+        }
         desc.name = name
         desc.uuid = uuid
         desc.isPrivate = true
         desc.muteBehavior = muteBehavior
-        desc.deviceUID = deviceUID
         return desc
     }
 
     private static func makeDescription(
         name: String,
         processes: [AudioObjectID],
+        tapDeviceUID: String?,
         uuid: UUID,
         muteBehavior: CATapMuteBehavior
     ) -> CATapDescription {
-        let desc = CATapDescription(stereoMixdownOfProcesses: processes)
+        let desc: CATapDescription
+        if let tapDeviceUID, !tapDeviceUID.isEmpty {
+            desc = CATapDescription(processes: processes, deviceUID: tapDeviceUID, stream: 0)
+        } else {
+            desc = CATapDescription(stereoMixdownOfProcesses: processes)
+        }
         desc.name = name
         desc.uuid = uuid
         desc.isPrivate = true

@@ -84,27 +84,35 @@ struct RTStreamLayout: Sendable, Equatable {
 struct RTRenderState {
     var currentGain: Float
     let maxFrames: Int
-    let scratchL: UnsafeMutablePointer<Float>
-    let scratchR: UnsafeMutablePointer<Float>
+    let maxChannels: Int
+    let scratchStorage: UnsafeMutablePointer<Float>
 
-    static func allocate(initialGain: Float, maxFrames: Int = 4_096) -> UnsafeMutablePointer<RTRenderState> {
+    @inline(__always)
+    func scratchChannel(_ index: Int) -> UnsafeMutablePointer<Float> {
+        scratchStorage + index * maxFrames
+    }
+
+    static func allocate(
+        initialGain: Float,
+        maxFrames: Int = 4_096,
+        maxChannels: Int = 2
+    ) -> UnsafeMutablePointer<RTRenderState> {
+        let resolvedFrames = max(1, maxFrames)
+        let resolvedChannels = max(2, maxChannels)
         let state = UnsafeMutablePointer<RTRenderState>.allocate(capacity: 1)
-        let l = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
-        let r = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
-        l.initialize(repeating: 0, count: maxFrames)
-        r.initialize(repeating: 0, count: maxFrames)
+        let storage = UnsafeMutablePointer<Float>.allocate(capacity: resolvedFrames * resolvedChannels)
+        storage.initialize(repeating: 0, count: resolvedFrames * resolvedChannels)
         state.initialize(to: RTRenderState(
             currentGain: initialGain,
-            maxFrames: maxFrames,
-            scratchL: l,
-            scratchR: r
+            maxFrames: resolvedFrames,
+            maxChannels: resolvedChannels,
+            scratchStorage: storage
         ))
         return state
     }
 
     static func deallocate(_ state: UnsafeMutablePointer<RTRenderState>) {
-        state.pointee.scratchL.deallocate()
-        state.pointee.scratchR.deallocate()
+        state.pointee.scratchStorage.deallocate()
         state.deinitialize(count: 1)
         state.deallocate()
     }
@@ -155,8 +163,8 @@ enum RTRenderer {
             return
         }
 
-        // Fast path 2: matching stereo buffer layout without soft clipping (gain <= 1.0) writes directly
-        // from input to output via vDSP / memcpy, bypassing scratch round-trips and 2ch deinterleaving.
+        // Fast path 2: matching layout without soft clipping (gain <= 1.0) writes directly
+        // from input to output via vDSP / memcpy, bypassing scratch round-trips.
         if startGain <= 1.0 && targetGain <= 1.0,
            let (inFrames, activity) = renderDirectIfMatchingLayout(
                inBuffers: inBuffers,
@@ -173,35 +181,38 @@ enum RTRenderer {
             return
         }
 
-        // Extract stereo (L, R) from input AudioBufferList.
-        let inFramesAvailable = extractStereoInput(
+        // Extract up to `state.pointee.maxChannels` planar channels from input AudioBufferList.
+        let (inFramesAvailable, extractedChannels) = extractInputChannels(
             inBuffers: inBuffers,
             layout: inputLayout,
+            outputChannelCount: outputLayout.channels,
             maxFrames: frames,
-            destL: state.pointee.scratchL,
-            destR: state.pointee.scratchR
+            state: state
         )
 
-        guard inFramesAvailable > 0 else {
+        guard inFramesAvailable > 0, extractedChannels > 0 else {
             zeroOutput(outBuffers: outBuffers)
             params.recordInputActivity(rms: 0)
             state.pointee.currentGain = targetGain
             return
         }
 
-        // Measure input RMS before gain for silence / permission probe detection.
-        var rmsL: Float = 0
-        var rmsR: Float = 0
-        vDSP_rmsqv(state.pointee.scratchL, 1, &rmsL, vDSP_Length(inFramesAvailable))
-        vDSP_rmsqv(state.pointee.scratchR, 1, &rmsR, vDSP_Length(inFramesAvailable))
-        let rms = max(rmsL, rmsR)
-        params.recordInputActivity(rms: rms)
+        // Measure input RMS before gain for silence / permission probe detection across all active channels.
+        var maxRMS: Float = 0
+        for c in 0..<extractedChannels {
+            var chRMS: Float = 0
+            vDSP_rmsqv(state.pointee.scratchChannel(c), 1, &chRMS, vDSP_Length(inFramesAvailable))
+            if chRMS > maxRMS {
+                maxRMS = chRMS
+            }
+        }
+        params.recordInputActivity(rms: maxRMS)
 
-        // Apply smoothed linear gain ramp + soft limiting if needed.
-        processStereoInPlace(
-            left: state.pointee.scratchL,
-            right: state.pointee.scratchR,
+        // Apply smoothed linear gain ramp + soft limiting if needed across all extracted channels.
+        processChannelsInPlace(
+            state: state,
             frameCount: inFramesAvailable,
+            channelCount: extractedChannels,
             startGain: startGain,
             targetGain: targetGain
         )
@@ -212,10 +223,10 @@ enum RTRenderer {
             zeroOutput(outBuffers: outBuffers)
         }
 
-        writeStereoToOutput(
-            srcL: state.pointee.scratchL,
-            srcR: state.pointee.scratchR,
+        writeChannelsToOutput(
+            state: state,
             frameCount: inFramesAvailable,
+            channelCount: extractedChannels,
             outBuffers: outBuffers,
             outputLayout: outputLayout
         )
@@ -229,31 +240,56 @@ enum RTRenderer {
         startGain: Float,
         targetGain: Float
     ) {
+        processChannelInPlace(left, frameCount: frameCount, startGain: startGain, targetGain: targetGain)
+        processChannelInPlace(right, frameCount: frameCount, startGain: startGain, targetGain: targetGain)
+    }
+
+    @inline(__always)
+    private static func processChannelsInPlace(
+        state: UnsafeMutablePointer<RTRenderState>,
+        frameCount: Int,
+        channelCount: Int,
+        startGain: Float,
+        targetGain: Float
+    ) {
+        guard frameCount > 0, channelCount > 0 else { return }
+        for c in 0..<channelCount {
+            processChannelInPlace(
+                state.pointee.scratchChannel(c),
+                frameCount: frameCount,
+                startGain: startGain,
+                targetGain: targetGain
+            )
+        }
+    }
+
+    @inline(__always)
+    private static func processChannelInPlace(
+        _ ptr: UnsafeMutablePointer<Float>,
+        frameCount: Int,
+        startGain: Float,
+        targetGain: Float
+    ) {
         guard frameCount > 0 else { return }
 
         if startGain == 0 && targetGain == 0 {
-            vDSP_vclr(left, 1, vDSP_Length(frameCount))
-            vDSP_vclr(right, 1, vDSP_Length(frameCount))
+            vDSP_vclr(ptr, 1, vDSP_Length(frameCount))
             return
         }
 
         if startGain == targetGain {
             if targetGain != 1.0 {
                 var g = targetGain
-                vDSP_vsmul(left, 1, &g, left, 1, vDSP_Length(frameCount))
-                vDSP_vsmul(right, 1, &g, right, 1, vDSP_Length(frameCount))
+                vDSP_vsmul(ptr, 1, &g, ptr, 1, vDSP_Length(frameCount))
             }
         } else {
             var step = (targetGain - startGain) / Float(frameCount)
-            var gL = startGain
-            var gR = startGain
-            vDSP_vrampmul(left, 1, &gL, &step, left, 1, vDSP_Length(frameCount))
-            vDSP_vrampmul(right, 1, &gR, &step, right, 1, vDSP_Length(frameCount))
+            var g = startGain
+            vDSP_vrampmul(ptr, 1, &g, &step, ptr, 1, vDSP_Length(frameCount))
         }
 
         if startGain > 1.0 || targetGain > 1.0 {
-            softClipInPlace(left, count: frameCount)
-            softClipInPlace(right, count: frameCount)
+            softClipInPlace(ptr, count: frameCount)
         }
     }
 
@@ -298,41 +334,37 @@ enum RTRenderer {
         maxFrames: Int
     ) -> (frames: Int, level: Float) {
         guard !inBuffers.isEmpty, maxFrames > 0 else { return (0, 0) }
-        var levelL: Float = 0
-        var levelR: Float = 0
 
         if layout.isNonInterleaved || inBuffers.count > 1 {
-            guard let ptr0 = inBuffers[0].mData?.assumingMemoryBound(to: Float.self) else {
-                return (0, 0)
-            }
-            let frames = min(maxFrames, Int(inBuffers[0].mDataByteSize) / MemoryLayout<Float>.size)
-            guard frames > 0 else { return (0, 0) }
-            vDSP_rmsqv(ptr0, 1, &levelL, vDSP_Length(frames))
-            if inBuffers.count > 1, let ptr1 = inBuffers[1].mData?.assumingMemoryBound(to: Float.self) {
-                let rFrames = min(frames, Int(inBuffers[1].mDataByteSize) / MemoryLayout<Float>.size)
-                if rFrames > 0 {
-                    vDSP_rmsqv(ptr1, 1, &levelR, vDSP_Length(rFrames))
+            var frames = maxFrames
+            var maxRMS: Float = 0
+            var validChannels = 0
+            for c in 0..<inBuffers.count {
+                guard let ptr = inBuffers[c].mData?.assumingMemoryBound(to: Float.self) else {
+                    continue
                 }
-            } else {
-                levelR = levelL
+                let bufFrames = Int(inBuffers[c].mDataByteSize) / MemoryLayout<Float>.size
+                guard bufFrames > 0 else { continue }
+                let count = min(frames, bufFrames)
+                frames = count
+                validChannels += 1
+                var chRMS: Float = 0
+                vDSP_rmsqv(ptr, 1, &chRMS, vDSP_Length(count))
+                if chRMS > maxRMS {
+                    maxRMS = chRMS
+                }
             }
-            return (frames, max(levelL, levelR))
+            return validChannels > 0 ? (frames, maxRMS) : (0, 0)
         } else {
             let buf = inBuffers[0]
             guard let raw = buf.mData?.assumingMemoryBound(to: Float.self) else { return (0, 0) }
             let channels = max(1, Int(buf.mNumberChannels))
             let frames = min(maxFrames, Int(buf.mDataByteSize) / (channels * MemoryLayout<Float>.size))
             guard frames > 0 else { return (0, 0) }
-            if channels <= 2 {
-                // Single contiguous vector peak scan across L/R is >4x faster than two strided vDSP_rmsqv passes.
-                var peak: Float = 0
-                vDSP_maxmgv(raw, 1, &peak, vDSP_Length(frames * channels))
-                return (frames, peak)
-            } else {
-                vDSP_maxmgv(raw, vDSP_Stride(channels), &levelL, vDSP_Length(frames))
-                vDSP_maxmgv(raw + 1, vDSP_Stride(channels), &levelR, vDSP_Length(frames))
-                return (frames, max(levelL, levelR))
-            }
+            // Single contiguous vector peak scan across all interleaved channels.
+            var peak: Float = 0
+            vDSP_maxmgv(raw, 1, &peak, vDSP_Length(frames * channels))
+            return (frames, peak)
         }
     }
 
@@ -352,101 +384,119 @@ enum RTRenderer {
         let inNonInterleaved = inputLayout.isNonInterleaved || inBuffers.count > 1
         let outNonInterleaved = outputLayout.isNonInterleaved || outBuffers.count > 1
 
-        if inNonInterleaved && outNonInterleaved && outBuffers.count >= 2 {
-            guard let inL = inBuffers[0].mData?.assumingMemoryBound(to: Float.self),
-                  let dstL = outBuffers[0].mData?.assumingMemoryBound(to: Float.self),
-                  let dstR = outBuffers[1].mData?.assumingMemoryBound(to: Float.self) else {
-                zeroOutput(outBuffers: outBuffers)
-                return (0, 0)
+        if inNonInterleaved && outNonInterleaved {
+            // Multi-channel to mono requires downmix in scratch path.
+            if inBuffers.count >= 2 && outBuffers.count == 1 {
+                return nil
             }
-            let inR = inBuffers.count > 1 ? inBuffers[1].mData?.assumingMemoryBound(to: Float.self) : nil
-            var frames = min(
-                maxFrames,
-                Int(inBuffers[0].mDataByteSize) / MemoryLayout<Float>.size,
-                Int(outBuffers[0].mDataByteSize) / MemoryLayout<Float>.size,
-                Int(outBuffers[1].mDataByteSize) / MemoryLayout<Float>.size
-            )
-            if inR != nil {
-                frames = min(frames, Int(inBuffers[1].mDataByteSize) / MemoryLayout<Float>.size)
+
+            let inCount = inBuffers.count
+            let outCount = outBuffers.count
+            let mappedChannels = min(inCount, outCount)
+            let duplicateMonoToStereo = (inCount == 1 && outCount >= 2)
+            let targetWriteChannels = duplicateMonoToStereo ? 2 : mappedChannels
+
+            var frames = maxFrames
+            for c in 0..<mappedChannels {
+                guard inBuffers[c].mData != nil else {
+                    zeroOutput(outBuffers: outBuffers)
+                    return (0, 0)
+                }
+                frames = min(frames, Int(inBuffers[c].mDataByteSize) / MemoryLayout<Float>.size)
+            }
+            for c in 0..<targetWriteChannels {
+                guard outBuffers[c].mData != nil else {
+                    zeroOutput(outBuffers: outBuffers)
+                    return (0, 0)
+                }
+                frames = min(frames, Int(outBuffers[c].mDataByteSize) / MemoryLayout<Float>.size)
             }
             guard frames > 0 else {
                 zeroOutput(outBuffers: outBuffers)
                 return (0, 0)
             }
 
-            var rmsL: Float = 0
-            var rmsR: Float = 0
-            vDSP_rmsqv(inL, 1, &rmsL, vDSP_Length(frames))
-            if let inR {
-                vDSP_rmsqv(inR, 1, &rmsR, vDSP_Length(frames))
-            } else {
-                rmsR = rmsL
+            var maxRMS: Float = 0
+            let vCount = vDSP_Length(frames)
+            for c in 0..<mappedChannels {
+                let inPtr = inBuffers[c].mData!.assumingMemoryBound(to: Float.self)
+                var chRMS: Float = 0
+                vDSP_rmsqv(inPtr, 1, &chRMS, vCount)
+                if chRMS > maxRMS {
+                    maxRMS = chRMS
+                }
             }
 
             if frames < outFrames {
                 zeroOutput(outBuffers: outBuffers)
             }
 
-            let srcR = inR ?? inL
-            let count = vDSP_Length(frames)
-            if startGain == 1.0 && targetGain == 1.0 {
-                let byteCount = frames * MemoryLayout<Float>.size
-                memcpy(dstL, inL, byteCount)
-                memcpy(dstR, srcR, byteCount)
-            } else if startGain == targetGain {
-                var gain = targetGain
-                vDSP_vsmul(inL, 1, &gain, dstL, 1, count)
-                vDSP_vsmul(srcR, 1, &gain, dstR, 1, count)
-            } else {
-                var step = (targetGain - startGain) / Float(frames)
-                var gL = startGain
-                var gR = startGain
-                vDSP_vrampmul(inL, 1, &gL, &step, dstL, 1, count)
-                vDSP_vrampmul(srcR, 1, &gR, &step, dstR, 1, count)
+            let byteCount = frames * MemoryLayout<Float>.size
+            for c in 0..<targetWriteChannels {
+                let srcIdx = duplicateMonoToStereo ? 0 : c
+                let inPtr = inBuffers[srcIdx].mData!.assumingMemoryBound(to: Float.self)
+                let dstPtr = outBuffers[c].mData!.assumingMemoryBound(to: Float.self)
+                if startGain == 1.0 && targetGain == 1.0 {
+                    memcpy(dstPtr, inPtr, byteCount)
+                } else if startGain == targetGain {
+                    var gain = targetGain
+                    vDSP_vsmul(inPtr, 1, &gain, dstPtr, 1, vCount)
+                } else {
+                    var step = (targetGain - startGain) / Float(frames)
+                    var g = startGain
+                    vDSP_vrampmul(inPtr, 1, &g, &step, dstPtr, 1, vCount)
+                }
             }
 
-            if outBuffers.count > 2 {
-                for c in 2..<outBuffers.count {
+            if outCount > targetWriteChannels {
+                for c in targetWriteChannels..<outCount {
                     if let dstExtra = outBuffers[c].mData {
                         memset(dstExtra, 0, Int(outBuffers[c].mDataByteSize))
                     }
                 }
             }
-            return (frames, max(rmsL, rmsR))
+            return (frames, maxRMS)
         }
 
         if !inNonInterleaved && !outNonInterleaved && inBuffers.count == 1 && outBuffers.count == 1,
            let raw = inBuffers[0].mData?.assumingMemoryBound(to: Float.self),
            let dst = outBuffers[0].mData?.assumingMemoryBound(to: Float.self),
-           inBuffers[0].mNumberChannels == 2,
-           outBuffers[0].mNumberChannels == 2 {
+           inBuffers[0].mNumberChannels >= 1,
+           inBuffers[0].mNumberChannels == outBuffers[0].mNumberChannels {
+            let channels = Int(inBuffers[0].mNumberChannels)
             let frames = min(
                 maxFrames,
-                Int(inBuffers[0].mDataByteSize) / (2 * MemoryLayout<Float>.size),
-                Int(outBuffers[0].mDataByteSize) / (2 * MemoryLayout<Float>.size)
+                Int(inBuffers[0].mDataByteSize) / (channels * MemoryLayout<Float>.size),
+                Int(outBuffers[0].mDataByteSize) / (channels * MemoryLayout<Float>.size)
             )
             guard frames > 0 else {
                 zeroOutput(outBuffers: outBuffers)
                 return (0, 0)
             }
-            let totalSamples = vDSP_Length(frames * 2)
+            let totalSamples = frames * channels
             var peak: Float = 0
-            vDSP_maxmgv(raw, 1, &peak, totalSamples)
+            vDSP_maxmgv(raw, 1, &peak, vDSP_Length(totalSamples))
 
             if frames < outFrames {
                 zeroOutput(outBuffers: outBuffers)
             }
             if startGain == 1.0 && targetGain == 1.0 {
-                memcpy(dst, raw, frames * 2 * MemoryLayout<Float>.size)
+                memcpy(dst, raw, totalSamples * MemoryLayout<Float>.size)
             } else if startGain == targetGain {
                 var gain = targetGain
-                vDSP_vsmul(raw, 1, &gain, dst, 1, totalSamples)
-            } else {
+                vDSP_vsmul(raw, 1, &gain, dst, 1, vDSP_Length(totalSamples))
+            } else if channels == 1 {
                 var step = (targetGain - startGain) / Float(frames)
-                var gL = startGain
-                var gR = startGain
-                vDSP_vrampmul(raw, 2, &gL, &step, dst, 2, vDSP_Length(frames))
-                vDSP_vrampmul(raw + 1, 2, &gR, &step, dst + 1, 2, vDSP_Length(frames))
+                var g = startGain
+                vDSP_vrampmul(raw, 1, &g, &step, dst, 1, vDSP_Length(frames))
+            } else {
+                let stride = vDSP_Stride(channels)
+                let frameLen = vDSP_Length(frames)
+                for c in 0..<channels {
+                    var step = (targetGain - startGain) / Float(frames)
+                    var g = startGain
+                    vDSP_vrampmul(raw + c, stride, &g, &step, dst + c, stride, frameLen)
+                }
             }
             return (frames, peak)
         }
@@ -464,80 +514,111 @@ enum RTRenderer {
     }
 
     @inline(__always)
-    private static func extractStereoInput(
+    private static func extractInputChannels(
         inBuffers: UnsafeMutableAudioBufferListPointer,
         layout: RTStreamLayout,
+        outputChannelCount: Int,
         maxFrames: Int,
-        destL: UnsafeMutablePointer<Float>,
-        destR: UnsafeMutablePointer<Float>
-    ) -> Int {
-        guard !inBuffers.isEmpty else { return 0 }
+        state: UnsafeMutablePointer<RTRenderState>
+    ) -> (frames: Int, channelCount: Int) {
+        guard !inBuffers.isEmpty, maxFrames > 0 else { return (0, 0) }
+        let maxChannels = state.pointee.maxChannels
 
         if layout.isNonInterleaved || inBuffers.count > 1 {
-            guard let ptr0 = inBuffers[0].mData?.assumingMemoryBound(to: Float.self) else {
-                return 0
+            let availableCh = min(inBuffers.count, maxChannels)
+            guard availableCh > 0, let ptr0 = inBuffers[0].mData?.assumingMemoryBound(to: Float.self) else {
+                return (0, 0)
             }
-            let frames = min(maxFrames, Int(inBuffers[0].mDataByteSize) / MemoryLayout<Float>.size)
-            guard frames > 0 else { return 0 }
-            memcpy(destL, ptr0, frames * MemoryLayout<Float>.size)
-            if inBuffers.count > 1, let ptr1 = inBuffers[1].mData?.assumingMemoryBound(to: Float.self) {
-                memcpy(destR, ptr1, frames * MemoryLayout<Float>.size)
-            } else {
-                memcpy(destR, ptr0, frames * MemoryLayout<Float>.size)
+            var frames = min(maxFrames, Int(inBuffers[0].mDataByteSize) / MemoryLayout<Float>.size)
+            for c in 1..<availableCh {
+                guard inBuffers[c].mData != nil else { return (0, 0) }
+                frames = min(frames, Int(inBuffers[c].mDataByteSize) / MemoryLayout<Float>.size)
             }
-            return frames
+            guard frames > 0 else { return (0, 0) }
+
+            let byteCount = frames * MemoryLayout<Float>.size
+            memcpy(state.pointee.scratchChannel(0), ptr0, byteCount)
+            if availableCh == 1 && outputChannelCount >= 2 && maxChannels >= 2 {
+                memcpy(state.pointee.scratchChannel(1), ptr0, byteCount)
+                return (frames, 2)
+            }
+            for c in 1..<availableCh {
+                let src = inBuffers[c].mData!.assumingMemoryBound(to: Float.self)
+                memcpy(state.pointee.scratchChannel(c), src, byteCount)
+            }
+            return (frames, availableCh)
         } else {
             let buf = inBuffers[0]
-            guard let raw = buf.mData?.assumingMemoryBound(to: Float.self) else { return 0 }
-            let channels = max(1, Int(buf.mNumberChannels))
-            let frames = min(maxFrames, Int(buf.mDataByteSize) / (channels * MemoryLayout<Float>.size))
-            guard frames > 0 else { return 0 }
+            guard let raw = buf.mData?.assumingMemoryBound(to: Float.self) else { return (0, 0) }
+            let inCh = max(1, Int(buf.mNumberChannels))
+            let frames = min(maxFrames, Int(buf.mDataByteSize) / (inCh * MemoryLayout<Float>.size))
+            guard frames > 0 else { return (0, 0) }
 
-            if channels == 1 {
-                memcpy(destL, raw, frames * MemoryLayout<Float>.size)
-                memcpy(destR, raw, frames * MemoryLayout<Float>.size)
-            } else if channels == 2 {
-                var split = DSPSplitComplex(realp: destL, imagp: destR)
+            if inCh == 1 {
+                let byteCount = frames * MemoryLayout<Float>.size
+                memcpy(state.pointee.scratchChannel(0), raw, byteCount)
+                if outputChannelCount >= 2 && maxChannels >= 2 {
+                    memcpy(state.pointee.scratchChannel(1), raw, byteCount)
+                    return (frames, 2)
+                }
+                return (frames, 1)
+            } else if inCh == 2 && maxChannels >= 2 {
+                var split = DSPSplitComplex(
+                    realp: state.pointee.scratchChannel(0),
+                    imagp: state.pointee.scratchChannel(1)
+                )
                 raw.withMemoryRebound(to: DSPComplex.self, capacity: frames) { complexPtr in
                     vDSP_ctoz(complexPtr, 2, &split, 1, vDSP_Length(frames))
                 }
+                return (frames, 2)
             } else {
-                // Deinterleave channels 0 & 1 (stride = channels)
+                let availableCh = min(inCh, maxChannels)
                 for f in 0..<frames {
-                    let base = f * channels
-                    destL[f] = raw[base]
-                    destR[f] = raw[base + 1]
+                    let base = f * inCh
+                    for c in 0..<availableCh {
+                        state.pointee.scratchChannel(c)[f] = raw[base + c]
+                    }
                 }
+                return (frames, availableCh)
             }
-            return frames
         }
     }
 
     @inline(__always)
-    static func writeStereoToOutput(
-        srcL: UnsafePointer<Float>,
-        srcR: UnsafePointer<Float>,
+    private static func writeChannelsToOutput(
+        state: UnsafeMutablePointer<RTRenderState>,
         frameCount: Int,
+        channelCount: Int,
         outBuffers: UnsafeMutableAudioBufferListPointer,
         outputLayout: RTStreamLayout
     ) {
-        guard !outBuffers.isEmpty, frameCount > 0 else { return }
+        guard !outBuffers.isEmpty, frameCount > 0, channelCount > 0 else { return }
 
         if outputLayout.isNonInterleaved || outBuffers.count > 1 {
             let bufCount = outBuffers.count
             if bufCount == 1, let dst = outBuffers[0].mData?.assumingMemoryBound(to: Float.self) {
-                // Mono non-interleaved: (L + R) * 0.5
-                var half: Float = 0.5
-                vDSP_vasm(srcL, 1, srcR, 1, &half, dst, 1, vDSP_Length(frameCount))
+                if channelCount >= 2 {
+                    var half: Float = 0.5
+                    vDSP_vasm(
+                        state.pointee.scratchChannel(0), 1,
+                        state.pointee.scratchChannel(1), 1,
+                        &half,
+                        dst, 1,
+                        vDSP_Length(frameCount)
+                    )
+                } else {
+                    memcpy(dst, state.pointee.scratchChannel(0), frameCount * MemoryLayout<Float>.size)
+                }
             } else {
-                if let dstL = outBuffers[0].mData?.assumingMemoryBound(to: Float.self) {
-                    memcpy(dstL, srcL, frameCount * MemoryLayout<Float>.size)
+                let mappedCh = min(channelCount, bufCount)
+                let byteCount = frameCount * MemoryLayout<Float>.size
+                for c in 0..<mappedCh {
+                    if let dst = outBuffers[c].mData?.assumingMemoryBound(to: Float.self) {
+                        memcpy(dst, state.pointee.scratchChannel(c), byteCount)
+                    }
                 }
-                if bufCount > 1, let dstR = outBuffers[1].mData?.assumingMemoryBound(to: Float.self) {
-                    memcpy(dstR, srcR, frameCount * MemoryLayout<Float>.size)
-                }
-                if bufCount > 2 {
-                    for c in 2..<bufCount {
+                if bufCount > mappedCh {
+                    for c in mappedCh..<bufCount {
                         if let dstExtra = outBuffers[c].mData {
                             memset(dstExtra, 0, Int(outBuffers[c].mDataByteSize))
                         }
@@ -547,24 +628,38 @@ enum RTRenderer {
         } else {
             let buf = outBuffers[0]
             guard let dst = buf.mData?.assumingMemoryBound(to: Float.self) else { return }
-            let channels = max(1, Int(buf.mNumberChannels))
-            if channels == 1 {
-                var half: Float = 0.5
-                vDSP_vasm(srcL, 1, srcR, 1, &half, dst, 1, vDSP_Length(frameCount))
-            } else if channels == 2 {
+            let outCh = max(1, Int(buf.mNumberChannels))
+            if outCh == 1 {
+                if channelCount >= 2 {
+                    var half: Float = 0.5
+                    vDSP_vasm(
+                        state.pointee.scratchChannel(0), 1,
+                        state.pointee.scratchChannel(1), 1,
+                        &half,
+                        dst, 1,
+                        vDSP_Length(frameCount)
+                    )
+                } else {
+                    memcpy(dst, state.pointee.scratchChannel(0), frameCount * MemoryLayout<Float>.size)
+                }
+            } else if outCh == 2 && channelCount >= 2 {
                 var split = DSPSplitComplex(
-                    realp: UnsafeMutablePointer(mutating: srcL),
-                    imagp: UnsafeMutablePointer(mutating: srcR)
+                    realp: state.pointee.scratchChannel(0),
+                    imagp: state.pointee.scratchChannel(1)
                 )
                 dst.withMemoryRebound(to: DSPComplex.self, capacity: frameCount) { complexPtr in
                     vDSP_ztoc(&split, 1, complexPtr, 2, vDSP_Length(frameCount))
                 }
             } else {
-                memset(dst, 0, Int(buf.mDataByteSize))
+                let mappedCh = min(channelCount, outCh)
+                if mappedCh < outCh {
+                    memset(dst, 0, Int(buf.mDataByteSize))
+                }
                 for f in 0..<frameCount {
-                    let base = f * channels
-                    dst[base] = srcL[f]
-                    dst[base + 1] = srcR[f]
+                    let base = f * outCh
+                    for c in 0..<mappedCh {
+                        dst[base + c] = state.pointee.scratchChannel(c)[f]
+                    }
                 }
             }
         }

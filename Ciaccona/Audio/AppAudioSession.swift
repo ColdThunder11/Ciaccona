@@ -16,10 +16,15 @@ final class AppAudioSession: @unchecked Sendable {
     private(set) var targetOutputUID: String = ""
     private(set) var isIORunning: Bool = false
 
+    private(set) var requestedTapDeviceUID: String?
+    private(set) var requestedMultichannel: Bool = false
+
     private var ioProcID: AudioDeviceIOProcID?
     private var renderState: UnsafeMutablePointer<RTRenderState>?
     private var lastProcesses: [AudioObjectID] = []
     private var lastTapDeviceUID: String?
+    private var activeTapDeviceUID: String?
+    private var activePreserveMultichannel: Bool = false
     private var isGlobalExcludeMode: Bool = false
     private var preferredBufferFrameSize: UInt32
     private var activeBufferFrameSize: UInt32
@@ -45,18 +50,49 @@ final class AppAudioSession: @unchecked Sendable {
         stop()
     }
 
-    func start(processes: [AudioObjectID], outputDeviceUID: String) throws {
+    func start(
+        processes: [AudioObjectID],
+        outputDeviceUID: String,
+        tapDeviceUID: String? = nil
+    ) throws {
         stop()
+        requestedTapDeviceUID = tapDeviceUID
+        requestedMultichannel = tapDeviceUID != nil
         do {
-            let tap = try TapBuilder.createProcessTap(
-                name: "Ciaccona-Tap-\(appID)",
-                processes: processes,
-                uuid: tapUUID,
-                muteBehavior: .mutedWhenTapped
-            )
+            let tap: AudioObjectID
+            if let tapDeviceUID, !tapDeviceUID.isEmpty {
+                do {
+                    tap = try TapBuilder.createProcessTap(
+                        name: "Ciaccona-Tap-\(appID)",
+                        processes: processes,
+                        tapDeviceUID: tapDeviceUID,
+                        uuid: tapUUID,
+                        muteBehavior: .mutedWhenTapped
+                    )
+                    activeTapDeviceUID = tapDeviceUID
+                } catch {
+                    Self.logger.warning("Multichannel tap failed for \(self.appID) on \(tapDeviceUID), falling back to stereo mixdown: \(error.localizedDescription)")
+                    tap = try TapBuilder.createProcessTap(
+                        name: "Ciaccona-Tap-\(appID)",
+                        processes: processes,
+                        uuid: tapUUID,
+                        muteBehavior: .mutedWhenTapped
+                    )
+                    activeTapDeviceUID = nil
+                }
+            } else {
+                tap = try TapBuilder.createProcessTap(
+                    name: "Ciaccona-Tap-\(appID)",
+                    processes: processes,
+                    uuid: tapUUID,
+                    muteBehavior: .mutedWhenTapped
+                )
+                activeTapDeviceUID = nil
+            }
             tapID = tap
             lastProcesses = processes
             lastTapDeviceUID = nil
+            activePreserveMultichannel = activeTapDeviceUID != nil
             isGlobalExcludeMode = false
 
             try attachAggregateAndStartIO(outputDeviceUID: outputDeviceUID)
@@ -69,20 +105,52 @@ final class AppAudioSession: @unchecked Sendable {
     func startGlobal(
         excludingProcesses: [AudioObjectID],
         tapDeviceUID: String?,
-        outputDeviceUID: String
+        outputDeviceUID: String,
+        preserveMultichannel: Bool = false
     ) throws {
         stop()
+        requestedTapDeviceUID = tapDeviceUID
+        requestedMultichannel = preserveMultichannel
         do {
-            let tap = try TapBuilder.createGlobalTap(
-                name: "Ciaccona-Tap-\(appID)",
-                excludingProcesses: excludingProcesses,
-                deviceUID: tapDeviceUID,
-                uuid: tapUUID,
-                muteBehavior: .mutedWhenTapped
-            )
+            let tap: AudioObjectID
+            if preserveMultichannel, let tapDeviceUID, !tapDeviceUID.isEmpty {
+                do {
+                    tap = try TapBuilder.createGlobalTap(
+                        name: "Ciaccona-Tap-\(appID)",
+                        excludingProcesses: excludingProcesses,
+                        deviceUID: tapDeviceUID,
+                        preserveMultichannel: true,
+                        uuid: tapUUID,
+                        muteBehavior: .mutedWhenTapped
+                    )
+                    activePreserveMultichannel = true
+                } catch {
+                    Self.logger.warning("Multichannel global tap failed on \(tapDeviceUID), falling back to stereo mixdown: \(error.localizedDescription)")
+                    tap = try TapBuilder.createGlobalTap(
+                        name: "Ciaccona-Tap-\(appID)",
+                        excludingProcesses: excludingProcesses,
+                        deviceUID: tapDeviceUID,
+                        preserveMultichannel: false,
+                        uuid: tapUUID,
+                        muteBehavior: .mutedWhenTapped
+                    )
+                    activePreserveMultichannel = false
+                }
+            } else {
+                tap = try TapBuilder.createGlobalTap(
+                    name: "Ciaccona-Tap-\(appID)",
+                    excludingProcesses: excludingProcesses,
+                    deviceUID: tapDeviceUID,
+                    preserveMultichannel: false,
+                    uuid: tapUUID,
+                    muteBehavior: .mutedWhenTapped
+                )
+                activePreserveMultichannel = false
+            }
             tapID = tap
             lastProcesses = excludingProcesses
             lastTapDeviceUID = tapDeviceUID
+            activeTapDeviceUID = nil
             isGlobalExcludeMode = true
 
             try attachAggregateAndStartIO(outputDeviceUID: outputDeviceUID)
@@ -99,6 +167,7 @@ final class AppAudioSession: @unchecked Sendable {
             tapID: tapID,
             name: "Ciaccona-Tap-\(appID)",
             processes: processes,
+            tapDeviceUID: activeTapDeviceUID,
             uuid: tapUUID,
             muteBehavior: .mutedWhenTapped
         )
@@ -113,6 +182,7 @@ final class AppAudioSession: @unchecked Sendable {
             name: "Ciaccona-Tap-\(appID)",
             excludingProcesses: processes,
             deviceUID: deviceUID,
+            preserveMultichannel: activePreserveMultichannel,
             uuid: tapUUID,
             muteBehavior: .mutedWhenTapped
         )
@@ -171,6 +241,10 @@ final class AppAudioSession: @unchecked Sendable {
         }
         lastProcesses = []
         lastTapDeviceUID = nil
+        requestedTapDeviceUID = nil
+        requestedMultichannel = false
+        activeTapDeviceUID = nil
+        activePreserveMultichannel = false
         isGlobalExcludeMode = false
     }
 
@@ -236,11 +310,28 @@ final class AppAudioSession: @unchecked Sendable {
             Self.logger.warning("Sample rate mismatch on \(self.appID): tap=\(inFormat.mSampleRate), out=\(outFormat.mSampleRate)")
         }
 
-        let inLayout = RTStreamLayout.from(asbd: inFormat)
-        let outLayout = RTStreamLayout.from(asbd: outFormat)
+        let parsedInLayout = RTStreamLayout.from(asbd: inFormat)
+        let parsedOutLayout = RTStreamLayout.from(asbd: outFormat)
+        let aggInChannels = max(parsedInLayout.channels, aggObj.channelCount(scope: kAudioDevicePropertyScopeInput))
+        let aggOutChannels = max(parsedOutLayout.channels, aggObj.channelCount(scope: kAudioDevicePropertyScopeOutput))
+        let inLayout = RTStreamLayout(
+            channels: aggInChannels,
+            isNonInterleaved: parsedInLayout.isNonInterleaved,
+            sampleRate: parsedInLayout.sampleRate
+        )
+        let outLayout = RTStreamLayout(
+            channels: aggOutChannels,
+            isNonInterleaved: parsedOutLayout.isNonInterleaved,
+            sampleRate: parsedOutLayout.sampleRate
+        )
 
         let scratchFrames = max(2_048, Int(activeBufferFrameSize) * 2)
-        let statePtr = RTRenderState.allocate(initialGain: params.loadEffectiveGain(), maxFrames: scratchFrames)
+        let scratchChannels = max(2, max(aggInChannels, aggOutChannels))
+        let statePtr = RTRenderState.allocate(
+            initialGain: params.loadEffectiveGain(),
+            maxFrames: scratchFrames,
+            maxChannels: scratchChannels
+        )
         renderState = statePtr
 
         let capturedParams = params

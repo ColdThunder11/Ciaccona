@@ -17,6 +17,7 @@ final class DeviceManager {
 
     private var systemTokens: [ListenerToken] = []
     private var deviceRateTokens: [AudioObjectID: ListenerToken] = [:]
+    private var deviceStreamConfigTokens: [AudioObjectID: ListenerToken] = [:]
 
     var defaultOutputDevice: AudioDevice? {
         outputDevices.first { $0.id == defaultOutputDeviceID }
@@ -75,6 +76,8 @@ final class DeviceManager {
         systemTokens.removeAll()
         deviceRateTokens.values.forEach { $0.invalidate() }
         deviceRateTokens.removeAll()
+        deviceStreamConfigTokens.values.forEach { $0.invalidate() }
+        deviceStreamConfigTokens.removeAll()
     }
 
     func setDefaultOutputDevice(_ deviceID: AudioObjectID) throws {
@@ -129,21 +132,44 @@ final class DeviceManager {
             token.invalidate()
             deviceRateTokens.removeValue(forKey: id)
         }
+        for (id, token) in deviceStreamConfigTokens where !currentIDs.contains(id) {
+            token.invalidate()
+            deviceStreamConfigTokens.removeValue(forKey: id)
+        }
 
         let q = AudioControlActor.queue
-        for device in outputDevices where deviceRateTokens[device.id] == nil {
+        for device in outputDevices {
             let devID = device.id
             let devUID = device.uid
-            if let token = AudioObject(id: devID).observe(
-                kAudioDevicePropertyNominalSampleRate,
-                queue: q,
-                handler: { [weak self] in
-                    AudioControlActor.assumeIsolatedOnQueue {
-                        self?.onSampleRateChanged?(devID, devUID)
-                    }
-                }
-            ) {
+            if deviceRateTokens[devID] == nil,
+               let token = AudioObject(id: devID).observe(
+                   kAudioDevicePropertyNominalSampleRate,
+                   queue: q,
+                   handler: { [weak self] in
+                       AudioControlActor.assumeIsolatedOnQueue {
+                           self?.onSampleRateChanged?(devID, devUID)
+                       }
+                   }
+               ) {
                 deviceRateTokens[devID] = token
+            }
+            if deviceStreamConfigTokens[devID] == nil,
+               let configToken = AudioObject(id: devID).observe(
+                   kAudioDevicePropertyStreamConfiguration,
+                   scope: kAudioDevicePropertyScopeOutput,
+                   queue: q,
+                   handler: { [weak self] in
+                       AudioControlActor.assumeIsolatedOnQueue {
+                           guard let self else { return }
+                           let currentChannels = AudioObject(id: devID).channelCount(scope: kAudioDevicePropertyScopeOutput)
+                           let knownChannels = self.outputDevices.first(where: { $0.id == devID })?.outputChannelCount
+                           if knownChannels != currentChannels {
+                               self.refreshAll()
+                           }
+                       }
+                   }
+               ) {
+                deviceStreamConfigTokens[devID] = configToken
             }
         }
     }

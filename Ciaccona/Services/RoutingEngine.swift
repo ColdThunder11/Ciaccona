@@ -416,15 +416,31 @@ final class RoutingEngine {
         let devAdj = deviceSoftwareAdjustment(forUID: outputUID)
         let effectiveGain = gain * devAdj.gain
         let effectiveMuted = muted || devAdj.muted
+        let desiredTapDeviceUID: String? = {
+            guard let defaultDev = deviceManager.defaultOutputDevice,
+                  defaultDev.uid == outputUID,
+                  defaultDev.outputChannelCount > 2 else {
+                return nil
+            }
+            return defaultDev.uid
+        }()
 
         if let existing = sessions[appID] {
             existing.setGain(effectiveGain)
             existing.setMuted(effectiveMuted)
 
             do {
-                try existing.updateProcesses(processIDs)
-                if existing.targetOutputUID != outputUID {
-                    try existing.switchOutput(to: outputUID)
+                if existing.requestedTapDeviceUID != desiredTapDeviceUID {
+                    try existing.start(
+                        processes: processIDs,
+                        outputDeviceUID: outputUID,
+                        tapDeviceUID: desiredTapDeviceUID
+                    )
+                } else {
+                    try existing.updateProcesses(processIDs)
+                    if existing.targetOutputUID != outputUID {
+                        try existing.switchOutput(to: outputUID)
+                    }
                 }
                 handleOnDemandState(appID: appID, app: app, session: existing)
                 sessionErrors.removeValue(forKey: appID)
@@ -443,7 +459,11 @@ final class RoutingEngine {
                 initialBufferFrameSize: ruleStore.preferences.bufferFrameSize.frameCount
             )
             do {
-                try session.start(processes: processIDs, outputDeviceUID: outputUID)
+                try session.start(
+                    processes: processIDs,
+                    outputDeviceUID: outputUID,
+                    tapDeviceUID: desiredTapDeviceUID
+                )
                 sessions[appID] = session
                 sessionErrors.removeValue(forKey: appID)
                 handleOnDemandState(appID: appID, app: app, session: session)
@@ -520,8 +540,10 @@ final class RoutingEngine {
         }
         let excluded = Array(excludedSet).sorted()
 
+        let preserveMultichannel = dev.outputChannelCount > 2
+
         if let existing = softwareVolumeSession {
-            if existing.targetOutputUID != dev.uid {
+            if existing.targetOutputUID != dev.uid || existing.requestedMultichannel != preserveMultichannel {
                 existing.stop()
                 softwareVolumeSession = nil
             } else {
@@ -551,7 +573,8 @@ final class RoutingEngine {
             try session.startGlobal(
                 excludingProcesses: excluded,
                 tapDeviceUID: dev.uid,
-                outputDeviceUID: dev.uid
+                outputDeviceUID: dev.uid,
+                preserveMultichannel: preserveMultichannel
             )
             softwareVolumeSession = session
         } catch {
