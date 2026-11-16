@@ -132,6 +132,40 @@
         }
       }
     },
+    "global.eq.active_help" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EQ: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EQ：%@"
+          }
+        }
+      }
+    },
+    "global.eq.select_help" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select Global EQ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择全局 EQ"
+          }
+        }
+      }
+    },
     "global.external_volume_hint" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -726,6 +760,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重置为默认"
+          }
+        }
+      }
+    },
+    "row.boost.disable" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disable volume boost (0%–100%)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭音量增强（恢复 0%–100%）"
+          }
+        }
+      }
+    },
+    "row.boost.enable" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable volume boost (0%–200%)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启音量增强（0%–200%）"
           }
         }
       }

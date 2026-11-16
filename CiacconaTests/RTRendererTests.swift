@@ -696,4 +696,17 @@ struct RTRendererTests {
         runOnce()
         #expect(abs(outCh0[frames - 1] - inCh0[frames - 1]) < 1e-6)
     }
+
+    @Test("RTParams allows up to 200% boost and clamps values above 2.0")
+    func rtParamsBoostMaxTwoHundredPercent() {
+        let params = RTParams(gain: 1.0, muted: false)
+        params.setGain(1.85)
+        #expect(abs(params.loadEffectiveGain() - 1.85) < 1e-6)
+
+        params.setGain(2.0)
+        #expect(abs(params.loadEffectiveGain() - 2.0) < 1e-6)
+
+        params.setGain(2.5)
+        #expect(abs(params.loadEffectiveGain() - 2.0) < 1e-6)
+    }
 }

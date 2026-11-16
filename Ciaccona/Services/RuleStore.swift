@@ -221,7 +221,7 @@ final class RuleStore: Sendable {
 
     func setRule(_ rule: AppRule, for appID: String) {
         var normalized = rule
-        normalized.volume = VolumeLevel.quantize(rule.volume, max: 1.5)
+        normalized.volume = VolumeLevel.quantize(rule.volume, max: 2.0)
         state.withLock { st in
             if normalized.isDefault {
                 st.data.rules.removeValue(forKey: appID)
@@ -423,7 +423,7 @@ final class RuleStore: Sendable {
             let validPresetIDs = Set(decoded.eqPresets.map(\.id))
             decoded.rules = decoded.rules.compactMapValues { rule in
                 var normalized = rule
-                normalized.volume = VolumeLevel.quantize(rule.volume, max: 1.5)
+                normalized.volume = VolumeLevel.quantize(rule.volume, max: 2.0)
                 if let presetID = normalized.eqPresetID, !validPresetIDs.contains(presetID) {
                     normalized.eqPresetID = nil
                 }

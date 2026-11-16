@@ -94,7 +94,7 @@ final class RTParams: @unchecked Sendable {
 
     @inline(__always)
     func setGain(_ gain: Float) {
-        let clamped = max(0.0, min(1.5, gain))
+        let clamped = max(0.0, min(2.0, gain))
         targetGainBits.store(clamped.bitPattern, ordering: .relaxed)
     }
 

@@ -22,6 +22,47 @@ struct AppRowView: View {
     let onReset: () -> Void
     let onRetry: () -> Void
 
+    @State private var isBoostMode: Bool
+
+    init(
+        app: AudioApp,
+        rule: AppRule,
+        icon: NSImage?,
+        fallbackSymbolName: String = "app.fill",
+        language: AppLanguage? = nil,
+        devices: [AudioDevice],
+        defaultDeviceName: String?,
+        isTargetOffline: Bool,
+        errorMessage: String?,
+        eqPresets: [EQProfile],
+        activeEQ: EQProfile?,
+        onVolumeChange: @escaping (Float) -> Void,
+        onToggleMute: @escaping () -> Void,
+        onOutputChange: @escaping (OutputTarget) -> Void,
+        onSelectEQPreset: @escaping (UUID?) -> Void,
+        onReset: @escaping () -> Void,
+        onRetry: @escaping () -> Void
+    ) {
+        self.app = app
+        self.rule = rule
+        self.icon = icon
+        self.fallbackSymbolName = fallbackSymbolName
+        self.language = language
+        self.devices = devices
+        self.defaultDeviceName = defaultDeviceName
+        self.isTargetOffline = isTargetOffline
+        self.errorMessage = errorMessage
+        self.eqPresets = eqPresets
+        self.activeEQ = activeEQ
+        self.onVolumeChange = onVolumeChange
+        self.onToggleMute = onToggleMute
+        self.onOutputChange = onOutputChange
+        self.onSelectEQPreset = onSelectEQPreset
+        self.onReset = onReset
+        self.onRetry = onRetry
+        self._isBoostMode = State(initialValue: rule.volume > 1.001)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
@@ -72,20 +113,37 @@ struct AppRowView: View {
                 )
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Slider(
                     value: Binding(
-                        get: { Double(rule.volume) },
-                        set: { onVolumeChange(VolumeLevel.quantize(Float($0), max: 1.5)) }
+                        get: {
+                            let maxLimit: Float = isBoostMode ? 2.0 : 1.0
+                            return Double(max(0.0, min(maxLimit, rule.volume)))
+                        },
+                        set: { onVolumeChange(VolumeLevel.quantize(Float($0), max: 2.0)) }
                     ),
-                    in: 0.0...1.5
+                    in: 0.0...(isBoostMode ? 2.0 : 1.0)
                 )
                 .tint(rule.volume > 1.001 ? .orange : .accentColor)
 
-                Text("\(VolumeLevel.percent(rule.volume, max: 1.5))%")
+                Text("\(VolumeLevel.percent(rule.volume, max: 2.0))%")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(rule.volume > 1.001 ? .orange : .secondary)
                     .frame(width: 40, alignment: .trailing)
+
+                Button {
+                    toggleBoostMode()
+                } label: {
+                    Image(systemName: isBoostMode ? "arrow.up.circle.fill" : "arrow.up.circle")
+                        .foregroundStyle(isBoostMode ? Color.orange : Color.secondary)
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.borderless)
+                .help(
+                    isBoostMode
+                        ? L10n.tr("row.boost.disable", defaultValue: "Disable volume boost (0%–100%)", language: language)
+                        : L10n.tr("row.boost.enable", defaultValue: "Enable volume boost (0%–200%)", language: language)
+                )
 
                 Button(action: onToggleMute) {
                     Image(systemName: rule.muted ? "speaker.slash.fill" : "speaker.wave.2")
@@ -102,6 +160,13 @@ struct AppRowView: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+        .onChange(of: rule.volume) { oldValue, newValue in
+            if newValue > 1.001 {
+                isBoostMode = true
+            } else if oldValue > 1.001 && rule.isDefault {
+                isBoostMode = false
+            }
+        }
         .contextMenu {
             EQSelectionMenuItems(
                 language: language,
@@ -110,8 +175,22 @@ struct AppRowView: View {
                 onSelectPreset: onSelectEQPreset
             )
             Divider()
-            Button(L10n.tr("row.action.reset", defaultValue: "Reset to Default", language: language), action: onReset)
-                .disabled(rule.isDefault)
+            Button(L10n.tr("row.action.reset", defaultValue: "Reset to Default", language: language)) {
+                isBoostMode = false
+                onReset()
+            }
+            .disabled(rule.isDefault && !isBoostMode)
+        }
+    }
+
+    private func toggleBoostMode() {
+        if isBoostMode {
+            isBoostMode = false
+            if rule.volume > 1.001 {
+                onVolumeChange(1.0)
+            }
+        } else {
+            isBoostMode = true
         }
     }
 

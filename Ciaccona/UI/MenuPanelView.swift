@@ -50,8 +50,7 @@ struct MenuPanelView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 14)
-                .padding(.trailing, 16)
+                .padding(.horizontal, 14)
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { newHeight in

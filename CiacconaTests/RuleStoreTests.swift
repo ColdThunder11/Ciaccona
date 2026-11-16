@@ -287,6 +287,10 @@ struct RuleStoreTests {
 
         store.setRule(AppRule(volume: 0.746, muted: false, output: .followSystemDefault), for: "com.test.app")
         #expect(store.rule(for: "com.test.app").volume == 0.75)
+
+        store.setRule(AppRule(volume: 2.0, muted: false, output: .followSystemDefault), for: "com.test.app")
+        #expect(store.rule(for: "com.test.app").volume == 2.0)
+        #expect(VolumeLevel.percent(2.0, max: 2.0) == 200)
     }
 
     @Test("RuleStore coalesces rapid volume updates into final debounced disk write")

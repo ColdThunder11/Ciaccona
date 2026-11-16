@@ -248,7 +248,7 @@ final class AppState {
     }
 
     func setAppVolume(_ volume: Float, for appID: String) {
-        let quantized = VolumeLevel.quantize(volume, max: 1.5)
+        let quantized = VolumeLevel.quantize(volume, max: 2.0)
         var r = rawRules[appID] ?? .default
         guard quantized != r.volume else { return }
         r.volume = quantized

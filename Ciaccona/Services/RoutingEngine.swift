@@ -169,7 +169,7 @@ final class RoutingEngine {
 
     func updateAppVolume(appID: String, volume: Float) {
         var rule = ruleStore.rule(for: appID)
-        let quantized = VolumeLevel.quantize(volume, max: 1.5)
+        let quantized = VolumeLevel.quantize(volume, max: 2.0)
         guard quantized != rule.volume else { return }
         rule.volume = quantized
 
