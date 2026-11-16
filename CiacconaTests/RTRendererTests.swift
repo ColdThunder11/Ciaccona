@@ -627,4 +627,73 @@ struct RTRendererTests {
         }
         #expect(abs(params.loadMaxObservedRMS() - 0.95) < 1e-5)
     }
+
+    @Test("renderIO applies preamp and peaking biquad EQ accurately and bypasses when deactivated")
+    func renderIOParametricEQFiltering() {
+        let frames = 512
+        let sampleRate = 48_000.0
+        // 1 kHz sine wave at amplitude 0.5
+        var inCh0 = (0..<frames).map { i in
+            Float(0.5 * sin(2.0 * Double.pi * 1_000.0 * Double(i) / sampleRate))
+        }
+        var inCh1 = inCh0
+        var outCh0 = [Float](repeating: 0, count: frames)
+        var outCh1 = [Float](repeating: 0, count: frames)
+
+        let params = RTParams(gain: 1.0, muted: false)
+        let eq = EQProfile(
+            name: "1k Cut",
+            preampDB: 0.0,
+            bands: [EQBand(type: .peaking, frequencyHz: 1_000.0, gainDB: -6.0, q: 1.0)]
+        )
+        let chain = CompiledEQChain.compile(profiles: [eq], sampleRate: sampleRate)
+        params.setEQ(chain)
+
+        let state = RTRenderState.allocate(initialGain: 1.0, maxFrames: 1_024, maxChannels: 2)
+        defer { RTRenderState.deallocate(state) }
+        let layout = RTStreamLayout(channels: 2, isNonInterleaved: true, sampleRate: sampleRate)
+
+        let runOnce = {
+            inCh0.withUnsafeMutableBufferPointer { i0 in
+                inCh1.withUnsafeMutableBufferPointer { i1 in
+                    outCh0.withUnsafeMutableBufferPointer { o0 in
+                        outCh1.withUnsafeMutableBufferPointer { o1 in
+                            let inABL = AudioBufferList.allocate(maximumBuffers: 2)
+                            let outABL = AudioBufferList.allocate(maximumBuffers: 2)
+                            defer {
+                                free(inABL.unsafeMutablePointer)
+                                free(outABL.unsafeMutablePointer)
+                            }
+                            inABL[0] = AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(frames * 4), mData: i0.baseAddress)
+                            inABL[1] = AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(frames * 4), mData: i1.baseAddress)
+                            outABL[0] = AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(frames * 4), mData: o0.baseAddress)
+                            outABL[1] = AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(frames * 4), mData: o1.baseAddress)
+
+                            RTRenderer.renderIO(
+                                inInputData: inABL.unsafePointer,
+                                outOutputData: outABL.unsafeMutablePointer,
+                                inputLayout: layout,
+                                outputLayout: layout,
+                                params: params,
+                                state: state
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Run a couple buffers so steady-state peaking filter settles cleanly.
+        runOnce()
+        runOnce()
+
+        // Compare tail peak magnitude (~0.5 * 10^(-6/20) = ~0.2506)
+        let tailPeak = outCh0.suffix(128).map(abs).max() ?? 0
+        #expect(abs(tailPeak - 0.2506) < 0.015)
+
+        // Deactivate EQ and verify immediate passthrough back to 0.5 amplitude.
+        params.setEQ(.inactive)
+        runOnce()
+        #expect(abs(outCh0[frames - 1] - inCh0[frames - 1]) < 1e-6)
+    }
 }

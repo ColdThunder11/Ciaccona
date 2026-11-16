@@ -12,9 +12,13 @@ struct AppRowView: View {
     let isTargetOffline: Bool
     let errorMessage: String?
 
+    let eqPresets: [EQProfile]
+    let activeEQ: EQProfile?
+
     let onVolumeChange: (Float) -> Void
     let onToggleMute: () -> Void
     let onOutputChange: (OutputTarget) -> Void
+    let onSelectEQPreset: (UUID?) -> Void
     let onReset: () -> Void
     let onRetry: () -> Void
 
@@ -31,6 +35,9 @@ struct AppRowView: View {
                             Circle()
                                 .fill(Color.green)
                                 .frame(width: 6, height: 6)
+                        }
+                        if let activeEQ, activeEQ.isActive {
+                            EQStatusBadge(presetName: activeEQ.name)
                         }
                         if isTargetOffline {
                             Text(L10n.tr("row.status.offline", defaultValue: "Offline", language: language))
@@ -94,7 +101,15 @@ struct AppRowView: View {
             }
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
         .contextMenu {
+            EQSelectionMenuItems(
+                language: language,
+                presets: eqPresets,
+                selectedPresetID: rule.eqPresetID,
+                onSelectPreset: onSelectEQPreset
+            )
+            Divider()
             Button(L10n.tr("row.action.reset", defaultValue: "Reset to Default", language: language), action: onReset)
                 .disabled(rule.isDefault)
         }
@@ -114,5 +129,63 @@ struct AppRowView: View {
                 .frame(width: 20, height: 20)
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+struct EQSelectionMenuItems: View {
+    let language: AppLanguage?
+    let presets: [EQProfile]
+    let selectedPresetID: UUID?
+    let onSelectPreset: (UUID?) -> Void
+
+    var body: some View {
+        if presets.isEmpty {
+            Button(L10n.tr(
+                "eq.menu.empty",
+                defaultValue: "No EQ imported (manage in Settings)",
+                language: language
+            )) {}
+            .disabled(true)
+        } else {
+            Section(L10n.tr("eq.menu.section", defaultValue: "EQ", language: language)) {
+                Button {
+                    onSelectPreset(nil)
+                } label: {
+                    if selectedPresetID == nil {
+                        Label(
+                            L10n.tr("eq.menu.off", defaultValue: "Off", language: language),
+                            systemImage: "checkmark"
+                        )
+                    } else {
+                        Text(L10n.tr("eq.menu.off", defaultValue: "Off", language: language))
+                    }
+                }
+                ForEach(presets) { preset in
+                    Button {
+                        onSelectPreset(selectedPresetID == preset.id ? nil : preset.id)
+                    } label: {
+                        if selectedPresetID == preset.id {
+                            Label(preset.name, systemImage: "checkmark")
+                        } else {
+                            Text(preset.name)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct EQStatusBadge: View {
+    let presetName: String
+
+    var body: some View {
+        Text("EQ")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Color.accentColor.opacity(0.14), in: Capsule())
+            .help(presetName)
     }
 }

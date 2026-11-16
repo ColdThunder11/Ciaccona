@@ -5,10 +5,25 @@ struct GlobalOutputSection: View {
     @Bindable var appState: AppState
 
     var body: some View {
+        let lang = appState.preferences.language
+        let device = appState.defaultOutputDevice
+        let selectedPresetID = device.flatMap { appState.deviceEQs[$0.uid] }
+
         VStack(alignment: .leading, spacing: 8) {
             GlobalOutputHeader(appState: appState)
             GlobalVolumeControlRow(appState: appState)
             GlobalVolumeHint(appState: appState)
+        }
+        .contentShape(Rectangle())
+        .contextMenu {
+            if device != nil {
+                EQSelectionMenuItems(
+                    language: lang,
+                    presets: appState.eqPresets,
+                    selectedPresetID: selectedPresetID,
+                    onSelectPreset: { appState.selectDefaultDeviceEQPreset($0) }
+                )
+            }
         }
     }
 }
@@ -24,6 +39,9 @@ private struct GlobalOutputHeader: View {
                 .frame(width: 18)
             Text(L10n.tr("global.output_device", defaultValue: "Output Device", language: lang))
                 .font(.headline)
+            if let eq = appState.currentDefaultDeviceEQ, eq.isActive {
+                EQStatusBadge(presetName: eq.name)
+            }
             Spacer(minLength: 4)
             GlobalDevicePicker(
                 label: L10n.tr("global.output_device", defaultValue: "Output Device", language: lang),

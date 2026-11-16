@@ -15,6 +15,7 @@
 		3F698711846CDE0612319F92 /* RoutingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5A6D31AC9A462C3C9121CCA /* RoutingEngine.swift */; };
 		4187FB994C1486DDB0E17325 /* AudioObject+Listener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18B6D0C3EF9C3734BB79F643 /* AudioObject+Listener.swift */; };
 		46D2EA810DD63CD676069DDD /* RTRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35D687881EB520A9B3E39AD /* RTRenderer.swift */; };
+		C1D2E3F405162738495A6B71 /* ParametricEQ.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D2E3F405162738495A6B72 /* ParametricEQ.swift */; };
 		4827BEF90211475F97C63C25 /* AppAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0D9F85468E346D6F61F9E2A /* AppAudioSession.swift */; };
 		4EDF99AC558E4AEDE55405B5 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F97AAD83C3328F61D44E10AC /* AudioToolbox.framework */; };
 		5F1C54DD7D6DEC46EFA56810 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1B44298C00E696F5EFCF0189 /* Accelerate.framework */; };
@@ -96,6 +97,7 @@
 		A83AED95F4E64A441ABCD52F /* GlobalVolumeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GlobalVolumeController.swift; path = Ciaccona/Services/GlobalVolumeController.swift; sourceTree = "<group>"; };
 		C0B3C89AE0C66CD2AFD66598 /* AudioObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AudioObject.swift; path = Ciaccona/CoreAudioWrapper/AudioObject.swift; sourceTree = "<group>"; };
 		C35D687881EB520A9B3E39AD /* RTRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RTRenderer.swift; path = Ciaccona/Audio/RTRenderer.swift; sourceTree = "<group>"; };
+		C1D2E3F405162738495A6B72 /* ParametricEQ.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ParametricEQ.swift; path = Ciaccona/Audio/ParametricEQ.swift; sourceTree = "<group>"; };
 		C7FE43A82CFAB8FED1AB0B7C /* GlobalOutputSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GlobalOutputSection.swift; path = Ciaccona/UI/GlobalOutputSection.swift; sourceTree = "<group>"; };
 		D2A2B3C4D5E6F708192A3B4D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Ciaccona/Resources/Assets.xcassets; sourceTree = "<group>"; };
 		D94404E671524086B6B9CA2C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = Ciaccona/App/Info.plist; sourceTree = "<group>"; };
@@ -208,6 +210,7 @@
 				19FC79578EDECA1542A63FFC /* AggregateDeviceBuilder.swift */,
 				0FBCDDD117C67535A924492C /* TapBuilder.swift */,
 				C35D687881EB520A9B3E39AD /* RTRenderer.swift */,
+				C1D2E3F405162738495A6B72 /* ParametricEQ.swift */,
 			);
 			name = Audio;
 			sourceTree = "<group>";
@@ -390,6 +393,7 @@
 				B1A94B87831E8C77B89699D4 /* AggregateDeviceBuilder.swift in Sources */,
 				B398F5B6E4728AF31FCACC58 /* TapBuilder.swift in Sources */,
 				46D2EA810DD63CD676069DDD /* RTRenderer.swift in Sources */,
+				C1D2E3F405162738495A6B71 /* ParametricEQ.swift in Sources */,
 				BE47E11E170F40A8E74EFC5C /* AudioObject.swift in Sources */,
 				4187FB994C1486DDB0E17325 /* AudioObject+Listener.swift in Sources */,
 				10C4399CE5A2B79D16D927B6 /* AudioDevice.swift in Sources */,

@@ -29,6 +29,8 @@ final class AppAudioSession: @unchecked Sendable {
     private var preferredBufferFrameSize: UInt32
     private var activeBufferFrameSize: UInt32
     private var activeSampleRate: Double = 48_000
+    private var eqProfiles: [EQProfile] = []
+    private var hasCompiledEQOnce: Bool = false
 
     var tappedProcesses: [AudioObjectID] {
         isGlobalExcludeMode ? [] : lastProcesses
@@ -206,6 +208,18 @@ final class AppAudioSession: @unchecked Sendable {
         params.setMuted(muted)
     }
 
+    func setEQProfiles(_ profiles: [EQProfile]) {
+        guard eqProfiles != profiles || !hasCompiledEQOnce else { return }
+        eqProfiles = profiles
+        pushCompiledEQ()
+    }
+
+    private func pushCompiledEQ() {
+        hasCompiledEQOnce = true
+        let chain = CompiledEQChain.compile(profiles: eqProfiles, sampleRate: activeSampleRate)
+        params.setEQ(chain)
+    }
+
     func updateBufferFrameSize(_ frameSize: UInt32) {
         preferredBufferFrameSize = frameSize
         guard aggregateID != AudioObjectID(kAudioObjectUnknown) else { return }
@@ -333,6 +347,7 @@ final class AppAudioSession: @unchecked Sendable {
             maxChannels: scratchChannels
         )
         renderState = statePtr
+        pushCompiledEQ()
 
         let capturedParams = params
         var newProcID: AudioDeviceIOProcID?

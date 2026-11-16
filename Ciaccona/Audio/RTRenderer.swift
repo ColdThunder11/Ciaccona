@@ -3,18 +3,93 @@ import CoreAudio
 import Foundation
 import Synchronization
 
+struct RTEQSlot {
+    var isActive: Bool
+    var preampGain: Float
+    var hasPositiveBoost: Bool
+    var bandCount: Int
+    var generation: UInt64
+    let coefficients: UnsafeMutablePointer<BiquadCoefficients>
+}
+
 /// Lock-free, allocation-free parameter block shared between control threads and the Core Audio RT thread.
-final class RTParams: Sendable {
+final class RTParams: @unchecked Sendable {
+    private static let dirtyBit = 0x4
+    private static let slotMask = 0x3
+
     private let targetGainBits: Atomic<UInt32>
     private let mutedFlag: Atomic<UInt32>
     private let maxObservedRmsBits: Atomic<UInt32>
     private let consecutiveSilentBuffers: Atomic<UInt64>
+
+    private struct EQWriterState {
+        var writeSlot: Int
+        var generation: UInt64
+    }
+
+    private let eqSlots: UnsafeMutablePointer<RTEQSlot>
+    private let eqMiddlePacked: Atomic<Int>
+    private var eqReadSlot: Int = 0
+    private let eqWriter: Mutex<EQWriterState>
 
     init(gain: Float = 1.0, muted: Bool = false) {
         self.targetGainBits = Atomic(gain.bitPattern)
         self.mutedFlag = Atomic(muted ? 1 : 0)
         self.maxObservedRmsBits = Atomic(Float(0).bitPattern)
         self.consecutiveSilentBuffers = Atomic(0)
+
+        let slots = UnsafeMutablePointer<RTEQSlot>.allocate(capacity: 3)
+        for i in 0..<3 {
+            let coeffs = UnsafeMutablePointer<BiquadCoefficients>.allocate(capacity: CompiledEQChain.maxBands)
+            coeffs.initialize(repeating: .identity, count: CompiledEQChain.maxBands)
+            (slots + i).initialize(to: RTEQSlot(
+                isActive: false,
+                preampGain: 1.0,
+                hasPositiveBoost: false,
+                bandCount: 0,
+                generation: 0,
+                coefficients: coeffs
+            ))
+        }
+        self.eqSlots = slots
+        self.eqMiddlePacked = Atomic(2)
+        self.eqWriter = Mutex(EQWriterState(writeSlot: 1, generation: 0))
+    }
+
+    deinit {
+        for i in 0..<3 {
+            (eqSlots + i).pointee.coefficients.deallocate()
+        }
+        eqSlots.deinitialize(count: 3)
+        eqSlots.deallocate()
+    }
+
+    func setEQ(_ chain: CompiledEQChain) {
+        eqWriter.withLock { (writer: inout EQWriterState) in
+            writer.generation &+= 1
+            let slotIdx = writer.writeSlot
+            let slotPtr = eqSlots + slotIdx
+            slotPtr.pointee.isActive = chain.isActive
+            slotPtr.pointee.preampGain = chain.preampGain
+            slotPtr.pointee.hasPositiveBoost = chain.hasPositiveBoost
+            let count = min(CompiledEQChain.maxBands, chain.coefficients.count)
+            slotPtr.pointee.bandCount = count
+            slotPtr.pointee.generation = writer.generation
+            for i in 0..<count {
+                slotPtr.pointee.coefficients[i] = chain.coefficients[i]
+            }
+            let prev = eqMiddlePacked.exchange(slotIdx | Self.dirtyBit, ordering: .acquiringAndReleasing)
+            writer.writeSlot = prev & Self.slotMask
+        }
+    }
+
+    @inline(__always)
+    func loadEQSlot() -> UnsafePointer<RTEQSlot> {
+        if (eqMiddlePacked.load(ordering: .relaxed) & Self.dirtyBit) != 0 {
+            let prev = eqMiddlePacked.exchange(eqReadSlot, ordering: .acquiringAndReleasing)
+            eqReadSlot = prev & Self.slotMask
+        }
+        return UnsafePointer(eqSlots + eqReadSlot)
     }
 
     @inline(__always)
@@ -86,10 +161,17 @@ struct RTRenderState {
     let maxFrames: Int
     let maxChannels: Int
     let scratchStorage: UnsafeMutablePointer<Float>
+    let eqDelayState: UnsafeMutablePointer<Double>
+    var eqAppliedGeneration: UInt64
 
     @inline(__always)
     func scratchChannel(_ index: Int) -> UnsafeMutablePointer<Float> {
         scratchStorage + index * maxFrames
+    }
+
+    @inline(__always)
+    func eqDelayChannel(_ channel: Int) -> UnsafeMutablePointer<Double> {
+        eqDelayState + channel * CompiledEQChain.maxBands * 2
     }
 
     static func allocate(
@@ -102,17 +184,23 @@ struct RTRenderState {
         let state = UnsafeMutablePointer<RTRenderState>.allocate(capacity: 1)
         let storage = UnsafeMutablePointer<Float>.allocate(capacity: resolvedFrames * resolvedChannels)
         storage.initialize(repeating: 0, count: resolvedFrames * resolvedChannels)
+        let delayCount = resolvedChannels * CompiledEQChain.maxBands * 2
+        let eqDelay = UnsafeMutablePointer<Double>.allocate(capacity: delayCount)
+        eqDelay.initialize(repeating: 0.0, count: delayCount)
         state.initialize(to: RTRenderState(
             currentGain: initialGain,
             maxFrames: resolvedFrames,
             maxChannels: resolvedChannels,
-            scratchStorage: storage
+            scratchStorage: storage,
+            eqDelayState: eqDelay,
+            eqAppliedGeneration: 0
         ))
         return state
     }
 
     static func deallocate(_ state: UnsafeMutablePointer<RTRenderState>) {
         state.pointee.scratchStorage.deallocate()
+        state.pointee.eqDelayState.deallocate()
         state.deinitialize(count: 1)
         state.deallocate()
     }
@@ -163,9 +251,18 @@ enum RTRenderer {
             return
         }
 
-        // Fast path 2: matching layout without soft clipping (gain <= 1.0) writes directly
+        let eqSlot = params.loadEQSlot()
+        let eqActive = eqSlot.pointee.isActive
+        if !eqActive && state.pointee.eqAppliedGeneration != 0 {
+            let delayCount = state.pointee.maxChannels * CompiledEQChain.maxBands * 2
+            memset(state.pointee.eqDelayState, 0, delayCount * MemoryLayout<Double>.size)
+            state.pointee.eqAppliedGeneration = 0
+        }
+
+        // Fast path 2: matching layout without active EQ or soft clipping (gain <= 1.0) writes directly
         // from input to output via vDSP / memcpy, bypassing scratch round-trips.
-        if startGain <= 1.0 && targetGain <= 1.0,
+        if !eqActive,
+           startGain <= 1.0 && targetGain <= 1.0,
            let (inFrames, activity) = renderDirectIfMatchingLayout(
                inBuffers: inBuffers,
                inputLayout: inputLayout,
@@ -197,7 +294,7 @@ enum RTRenderer {
             return
         }
 
-        // Measure input RMS before gain for silence / permission probe detection across all active channels.
+        // Measure input RMS before EQ and gain for silence / permission probe detection across all active channels.
         var maxRMS: Float = 0
         for c in 0..<extractedChannels {
             var chRMS: Float = 0
@@ -208,13 +305,23 @@ enum RTRenderer {
         }
         params.recordInputActivity(rms: maxRMS)
 
+        if eqActive {
+            processEQInPlace(
+                state: state,
+                frameCount: inFramesAvailable,
+                channelCount: extractedChannels,
+                eqSlot: eqSlot
+            )
+        }
+
         // Apply smoothed linear gain ramp + soft limiting if needed across all extracted channels.
         processChannelsInPlace(
             state: state,
             frameCount: inFramesAvailable,
             channelCount: extractedChannels,
             startGain: startGain,
-            targetGain: targetGain
+            targetGain: targetGain,
+            forceSoftClip: eqActive && eqSlot.pointee.hasPositiveBoost
         )
         state.pointee.currentGain = targetGain
 
@@ -245,12 +352,68 @@ enum RTRenderer {
     }
 
     @inline(__always)
+    private static func processEQInPlace(
+        state: UnsafeMutablePointer<RTRenderState>,
+        frameCount: Int,
+        channelCount: Int,
+        eqSlot: UnsafePointer<RTEQSlot>
+    ) {
+        guard frameCount > 0, channelCount > 0 else { return }
+
+        let gen = eqSlot.pointee.generation
+        if state.pointee.eqAppliedGeneration != gen {
+            let delayCount = state.pointee.maxChannels * CompiledEQChain.maxBands * 2
+            memset(state.pointee.eqDelayState, 0, delayCount * MemoryLayout<Double>.size)
+            state.pointee.eqAppliedGeneration = gen
+        }
+
+        let preamp = eqSlot.pointee.preampGain
+        let bandCount = eqSlot.pointee.bandCount
+        let coeffs = eqSlot.pointee.coefficients
+
+        for c in 0..<channelCount {
+            let ptr = state.pointee.scratchChannel(c)
+            if abs(preamp - 1.0) >= 0.0005 {
+                var g = preamp
+                vDSP_vsmul(ptr, 1, &g, ptr, 1, vDSP_Length(frameCount))
+            }
+            guard bandCount > 0 else { continue }
+
+            let delayPtr = state.pointee.eqDelayChannel(c)
+            for b in 0..<bandCount {
+                let coeff = coeffs[b]
+                let b0 = coeff.b0
+                let b1 = coeff.b1
+                let b2 = coeff.b2
+                let a1 = coeff.a1
+                let a2 = coeff.a2
+
+                let zOffset = b * 2
+                var z1 = delayPtr[zOffset]
+                var z2 = delayPtr[zOffset + 1]
+
+                for f in 0..<frameCount {
+                    let x = Double(ptr[f])
+                    let y = b0 * x + z1
+                    z1 = b1 * x - a1 * y + z2
+                    z2 = b2 * x - a2 * y
+                    ptr[f] = Float(y)
+                }
+
+                delayPtr[zOffset] = z1
+                delayPtr[zOffset + 1] = z2
+            }
+        }
+    }
+
+    @inline(__always)
     private static func processChannelsInPlace(
         state: UnsafeMutablePointer<RTRenderState>,
         frameCount: Int,
         channelCount: Int,
         startGain: Float,
-        targetGain: Float
+        targetGain: Float,
+        forceSoftClip: Bool = false
     ) {
         guard frameCount > 0, channelCount > 0 else { return }
         for c in 0..<channelCount {
@@ -258,7 +421,8 @@ enum RTRenderer {
                 state.pointee.scratchChannel(c),
                 frameCount: frameCount,
                 startGain: startGain,
-                targetGain: targetGain
+                targetGain: targetGain,
+                forceSoftClip: forceSoftClip
             )
         }
     }
@@ -268,7 +432,8 @@ enum RTRenderer {
         _ ptr: UnsafeMutablePointer<Float>,
         frameCount: Int,
         startGain: Float,
-        targetGain: Float
+        targetGain: Float,
+        forceSoftClip: Bool = false
     ) {
         guard frameCount > 0 else { return }
 
@@ -288,7 +453,7 @@ enum RTRenderer {
             vDSP_vrampmul(ptr, 1, &g, &step, ptr, 1, vDSP_Length(frameCount))
         }
 
-        if startGain > 1.0 || targetGain > 1.0 {
+        if forceSoftClip || startGain > 1.0 || targetGain > 1.0 {
             softClipInPlace(ptr, count: frameCount)
         }
     }

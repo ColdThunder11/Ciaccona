@@ -106,6 +106,52 @@ struct SettingsView: View {
                 }
             }
 
+            Section(L10n.tr("settings.section.eq", defaultValue: "EQ", language: lang)) {
+                if appState.eqPresets.isEmpty {
+                    Text(L10n.tr(
+                        "settings.eq.empty",
+                        defaultValue: "No EQ files imported yet",
+                        language: lang
+                    ))
+                    .foregroundStyle(.secondary)
+                } else {
+                    ForEach(appState.eqPresets) { preset in
+                        HStack(spacing: 8) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(preset.name)
+                                    .lineLimit(1)
+                                Text(eqSummaryText(for: preset, language: lang))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                appState.deleteEQPreset(id: preset.id)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .help(L10n.tr("settings.eq.delete", defaultValue: "Delete EQ", language: lang))
+                        }
+                    }
+                }
+
+                HStack {
+                    Text(L10n.tr(
+                        "settings.eq.hint",
+                        defaultValue: "Supports AutoEQ / EqualizerAPO .txt files",
+                        language: lang
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    Spacer()
+                    Button(L10n.tr("settings.eq.import", defaultValue: "Import EQ...", language: lang)) {
+                        appState.importEQPresetsFromPanel()
+                    }
+                }
+            }
+
             Section {
                 LabeledContent(
                     L10n.tr("settings.version", defaultValue: "Version", language: lang),
@@ -141,7 +187,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 470)
+        .frame(width: 500, height: 550)
         .alert(
             L10n.tr(
                 "settings.reset_routing.alert.title",
@@ -171,5 +217,16 @@ struct SettingsView: View {
                 language: lang
             ))
         }
+    }
+
+    private func eqSummaryText(for preset: EQProfile, language: AppLanguage) -> String {
+        let preampStr = String(format: "%+.1f dB", preset.preampDB)
+        return L10n.trFormat(
+            "settings.eq.summary",
+            defaultValue: "%lld bands · Preamp %@",
+            language: language,
+            preset.activeBandCount,
+            preampStr
+        )
     }
 }

@@ -27,6 +27,111 @@
     "Ciaccona" : {
 
     },
+    "EQ" : {
+
+    },
+    "eq.import.error.no_filters" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No valid parametric EQ filters or preamp settings were found in this file."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未在所选文件中检测到有效的参数 EQ 滤波器或 Preamp 配置。"
+          }
+        }
+      }
+    },
+    "eq.import.error.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to Import EQ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入 EQ 失败"
+          }
+        }
+      }
+    },
+    "eq.import.panel.library_message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select parametric EQ (.txt) files to import into Ciaccona"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择要导入到 Ciaccona 的参数 EQ 配置文件（.txt）"
+          }
+        }
+      }
+    },
+    "eq.menu.empty" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No EQ imported (manage in Settings)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未导入 EQ（请在设置中导入）"
+          }
+        }
+      }
+    },
+    "eq.menu.off" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不使用 EQ"
+          }
+        }
+      }
+    },
+    "eq.menu.section" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EQ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EQ"
+          }
+        }
+      }
+    },
     "global.external_volume_hint" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -795,6 +900,91 @@
         }
       }
     },
+    "settings.eq.delete" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete EQ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除 EQ"
+          }
+        }
+      }
+    },
+    "settings.eq.empty" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No EQ files imported yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未导入 EQ 文件"
+          }
+        }
+      }
+    },
+    "settings.eq.hint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supports AutoEQ / EqualizerAPO .txt files"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持 AutoEQ / EqualizerAPO .txt 文件"
+          }
+        }
+      }
+    },
+    "settings.eq.import" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import EQ..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入 EQ..."
+          }
+        }
+      }
+    },
+    "settings.eq.summary" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld bands · Preamp %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 段滤波 · Preamp %@"
+          }
+        }
+      }
+    },
     "settings.language" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -948,22 +1138,6 @@
         }
       }
     },
-    "settings.section.accessibility" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Accessibility"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "辅助功能"
-          }
-        }
-      }
-    },
     "settings.section.about" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -981,6 +1155,23 @@
         }
       }
     },
+    "settings.section.accessibility" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辅助功能"
+          }
+        }
+      }
+    },
     "settings.section.audio_routing" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -994,6 +1185,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音频路由"
+          }
+        }
+      }
+    },
+    "settings.section.eq" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EQ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "均衡器（EQ）"
           }
         }
       }

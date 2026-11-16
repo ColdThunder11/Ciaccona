@@ -54,9 +54,10 @@ struct AppRule: Codable, Equatable, Sendable {
     var volume: Float = 1.0
     var muted: Bool = false
     var output: OutputTarget = .followSystemDefault
+    var eqPresetID: UUID? = nil
 
     var isDefault: Bool {
-        abs(volume - 1.0) < 0.001 && !muted && output == .followSystemDefault
+        abs(volume - 1.0) < 0.001 && !muted && output == .followSystemDefault && eqPresetID == nil
     }
 
     static let `default` = AppRule()
@@ -139,17 +140,23 @@ struct PersistedRuleFile: Codable, Equatable, Sendable {
     var version: Int = 1
     var rules: [String: AppRule] = [:]
     var deviceVolumes: [String: DeviceVolumeRule] = [:]
+    var eqPresets: [EQProfile] = []
+    var deviceEQs: [String: UUID] = [:]
     var preferences: AppPreferences = AppPreferences()
 
     init(
         version: Int = 1,
         rules: [String: AppRule] = [:],
         deviceVolumes: [String: DeviceVolumeRule] = [:],
+        eqPresets: [EQProfile] = [],
+        deviceEQs: [String: UUID] = [:],
         preferences: AppPreferences = AppPreferences()
     ) {
         self.version = version
         self.rules = rules
         self.deviceVolumes = deviceVolumes
+        self.eqPresets = eqPresets
+        self.deviceEQs = deviceEQs
         self.preferences = preferences
     }
 
@@ -158,6 +165,8 @@ struct PersistedRuleFile: Codable, Equatable, Sendable {
         self.version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
         self.rules = try container.decodeIfPresent([String: AppRule].self, forKey: .rules) ?? [:]
         self.deviceVolumes = try container.decodeIfPresent([String: DeviceVolumeRule].self, forKey: .deviceVolumes) ?? [:]
+        self.eqPresets = try container.decodeIfPresent([EQProfile].self, forKey: .eqPresets) ?? []
+        self.deviceEQs = try container.decodeIfPresent([String: UUID].self, forKey: .deviceEQs) ?? [:]
         self.preferences = try container.decodeIfPresent(AppPreferences.self, forKey: .preferences) ?? AppPreferences()
     }
 }
@@ -178,6 +187,14 @@ final class RuleStore: Sendable {
 
     var rules: [String: AppRule] {
         state.withLock { $0.data.rules }
+    }
+
+    var eqPresets: [EQProfile] {
+        state.withLock { $0.data.eqPresets }
+    }
+
+    var deviceEQs: [String: UUID] {
+        state.withLock { $0.data.deviceEQs }
     }
 
     var preferences: AppPreferences {
@@ -245,6 +262,73 @@ final class RuleStore: Sendable {
                 st.data.deviceVolumes.removeValue(forKey: deviceUID)
             } else {
                 st.data.deviceVolumes[deviceUID] = normalized
+            }
+        }
+        scheduleSave()
+    }
+
+    func eqPreset(id: UUID) -> EQProfile? {
+        state.withLock { $0.data.eqPresets.first { $0.id == id } }
+    }
+
+    func addEQPresets(_ presets: [EQProfile]) {
+        guard !presets.isEmpty else { return }
+        state.withLock { st in
+            for preset in presets {
+                if let idx = st.data.eqPresets.firstIndex(where: { $0.id == preset.id }) {
+                    st.data.eqPresets[idx] = preset
+                } else {
+                    st.data.eqPresets.append(preset)
+                }
+            }
+        }
+        scheduleSave()
+    }
+
+    func removeEQPreset(id: UUID) {
+        let changed = state.withLock { st -> Bool in
+            let countBefore = st.data.eqPresets.count
+            st.data.eqPresets.removeAll { $0.id == id }
+            var modified = st.data.eqPresets.count != countBefore
+
+            for (appID, var rule) in st.data.rules where rule.eqPresetID == id {
+                rule.eqPresetID = nil
+                if rule.isDefault {
+                    st.data.rules.removeValue(forKey: appID)
+                } else {
+                    st.data.rules[appID] = rule
+                }
+                modified = true
+            }
+
+            for (uid, presetID) in st.data.deviceEQs where presetID == id {
+                st.data.deviceEQs.removeValue(forKey: uid)
+                modified = true
+            }
+            return modified
+        }
+        if changed {
+            scheduleSave()
+        }
+    }
+
+    func deviceEQPresetID(for deviceUID: String) -> UUID? {
+        state.withLock { $0.data.deviceEQs[deviceUID] }
+    }
+
+    func deviceEQ(for deviceUID: String) -> EQProfile? {
+        state.withLock { st in
+            guard let id = st.data.deviceEQs[deviceUID] else { return nil }
+            return st.data.eqPresets.first { $0.id == id }
+        }
+    }
+
+    func setDeviceEQPresetID(_ presetID: UUID?, for deviceUID: String) {
+        state.withLock { st in
+            if let presetID, st.data.eqPresets.contains(where: { $0.id == presetID }) {
+                st.data.deviceEQs[deviceUID] = presetID
+            } else {
+                st.data.deviceEQs.removeValue(forKey: deviceUID)
             }
         }
         scheduleSave()
@@ -336,9 +420,13 @@ final class RuleStore: Sendable {
         }
         do {
             var decoded = try JSONDecoder().decode(PersistedRuleFile.self, from: raw)
+            let validPresetIDs = Set(decoded.eqPresets.map(\.id))
             decoded.rules = decoded.rules.compactMapValues { rule in
                 var normalized = rule
                 normalized.volume = VolumeLevel.quantize(rule.volume, max: 1.5)
+                if let presetID = normalized.eqPresetID, !validPresetIDs.contains(presetID) {
+                    normalized.eqPresetID = nil
+                }
                 return normalized.isDefault ? nil : normalized
             }
             decoded.deviceVolumes = decoded.deviceVolumes.compactMapValues { rule in
@@ -346,6 +434,7 @@ final class RuleStore: Sendable {
                 normalized.volume = VolumeLevel.quantize(rule.volume, max: 1.0)
                 return normalized.isDefault ? nil : normalized
             }
+            decoded.deviceEQs = decoded.deviceEQs.filter { validPresetIDs.contains($0.value) }
             return decoded
         } catch {
             logger.error("Failed to decode rules.json, using defaults: \(error.localizedDescription)")

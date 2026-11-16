@@ -499,4 +499,34 @@ struct RuleStoreTests {
         #expect(state.shouldInterceptMediaKey(.volumeUp) == false)
         #expect(state.shouldInterceptMediaKey(.muteToggle) == false)
     }
+
+    @Test("RuleStore persists EQ library and clears app/device references when deleting a preset")
+    func eqRulePersistence() throws {
+        let url = makeTempFileURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+
+        let eq = EQProfile(
+            name: "MM3A",
+            preampDB: -3.5,
+            bands: [EQBand(type: .peaking, frequencyHz: 1_000, gainDB: -3.5, q: 1.0)]
+        )
+
+        let store1 = RuleStore(fileURL: url)
+        store1.addEQPresets([eq])
+        store1.setRule(AppRule(volume: 1.0, muted: false, output: .followSystemDefault, eqPresetID: eq.id), for: "com.apple.Music")
+        store1.setDeviceEQPresetID(eq.id, for: "MOONDROP-UID")
+        store1.flush()
+
+        let store2 = RuleStore(fileURL: url)
+        #expect(store2.eqPresets == [eq])
+        #expect(store2.rule(for: "com.apple.Music").eqPresetID == eq.id)
+        #expect(store2.deviceEQ(for: "MOONDROP-UID") == eq)
+
+        store2.removeEQPreset(id: eq.id)
+        store2.flush()
+        let store3 = RuleStore(fileURL: url)
+        #expect(store3.eqPresets.isEmpty)
+        #expect(store3.rule(for: "com.apple.Music").eqPresetID == nil)
+        #expect(store3.deviceEQ(for: "MOONDROP-UID") == nil)
+    }
 }

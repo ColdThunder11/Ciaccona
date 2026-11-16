@@ -4,6 +4,7 @@ import Foundation
 import Observation
 import OSLog
 import ServiceManagement
+import UniformTypeIdentifiers
 
 @MainActor
 @Observable
@@ -39,6 +40,8 @@ final class AppState {
     private(set) var activeIdleApps: [AudioApp] = []
     var systemAlertApp: AudioApp = SystemAlertSound.makeApp(from: [])
     var rules: [String: AppRule] = [:]
+    var eqPresets: [EQProfile] = []
+    var deviceEQs: [String: UUID] = [:]
     var preferences: AppPreferences = AppPreferences()
     var offlineAppIDs: Set<String> = []
     var sessionErrors: [String: String] = [:]
@@ -68,6 +71,16 @@ final class AppState {
 
     var defaultOutputDevice: AudioDevice? {
         outputDevices.first { $0.id == defaultOutputDeviceID }
+    }
+
+    var currentDefaultDeviceEQ: EQProfile? {
+        guard let uid = defaultOutputDevice?.uid, let id = deviceEQs[uid] else { return nil }
+        return eqPresets.first { $0.id == id }
+    }
+
+    func eqPreset(for rule: AppRule) -> EQProfile? {
+        guard let id = rule.eqPresetID else { return nil }
+        return eqPresets.first { $0.id == id }
     }
 
     var menuBarSymbolName: String {
@@ -137,6 +150,12 @@ final class AppState {
         pruneInactiveCaches()
         if self.rules != snapshot.rules {
             self.rules = snapshot.rules
+        }
+        if self.eqPresets != snapshot.eqPresets {
+            self.eqPresets = snapshot.eqPresets
+        }
+        if self.deviceEQs != snapshot.deviceEQs {
+            self.deviceEQs = snapshot.deviceEQs
         }
         if self.preferences != snapshot.preferences {
             let prevTakeOverMediaKeys = self.preferences.takeOverVolumeMediaKeys
@@ -258,6 +277,100 @@ final class AppState {
         let engine = routingEngine
         Task { @AudioControlActor in
             engine?.updateAppOutput(appID: appID, target: target)
+        }
+    }
+
+    func selectAppEQPreset(_ presetID: UUID?, for appID: String) {
+        var r = rule(for: appID)
+        r.eqPresetID = presetID
+        updateLocalRule(r, for: appID)
+        let engine = routingEngine
+        Task { @AudioControlActor in
+            engine?.updateAppEQPreset(presetID, for: appID)
+        }
+    }
+
+    func selectDefaultDeviceEQPreset(_ presetID: UUID?) {
+        guard let uid = defaultOutputDevice?.uid else { return }
+        if let presetID {
+            deviceEQs[uid] = presetID
+        } else {
+            deviceEQs.removeValue(forKey: uid)
+        }
+        let engine = routingEngine
+        Task { @AudioControlActor in
+            engine?.updateDeviceEQPreset(presetID, for: uid)
+        }
+    }
+
+    func deleteEQPreset(id: UUID) {
+        eqPresets.removeAll { $0.id == id }
+        for (appID, var rule) in rawRules where rule.eqPresetID == id {
+            rule.eqPresetID = nil
+            updateLocalRule(rule, for: appID)
+        }
+        for (uid, presetID) in deviceEQs where presetID == id {
+            deviceEQs.removeValue(forKey: uid)
+        }
+        let engine = routingEngine
+        Task { @AudioControlActor in
+            engine?.removeEQPreset(id: id)
+        }
+    }
+
+    func importEQPresetsFromPanel() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.plainText]
+        panel.message = L10n.tr(
+            "eq.import.panel.library_message",
+            defaultValue: "Select parametric EQ (.txt) files to import into Ciaccona"
+        )
+
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+
+        var imported: [EQProfile] = []
+        var firstError: Error?
+
+        for fileURL in panel.urls {
+            do {
+                let content: String
+                if let utf8 = try? String(contentsOf: fileURL, encoding: .utf8) {
+                    content = utf8
+                } else {
+                    content = try String(contentsOf: fileURL, encoding: .isoLatin1)
+                }
+                let presetName = fileURL.deletingPathExtension().lastPathComponent
+                let profile = try ParametricEQParser.parse(content, name: presetName)
+                imported.append(profile)
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+            }
+        }
+
+        if !imported.isEmpty {
+            eqPresets.append(contentsOf: imported)
+            let batch = imported
+            let engine = routingEngine
+            Task { @AudioControlActor in
+                engine?.addEQPresets(batch)
+            }
+        }
+
+        if let firstError {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = L10n.tr("eq.import.error.title", defaultValue: "Failed to Import EQ")
+            alert.informativeText = firstError.localizedDescription
+            alert.addButton(withTitle: L10n.tr("instance.already_running.ok", defaultValue: "OK"))
+            alert.runModal()
         }
     }
 

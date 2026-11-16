@@ -147,9 +147,12 @@ private struct AppRowContainer: View {
             defaultDeviceName: appState.defaultOutputDevice?.name,
             isTargetOffline: appState.offlineAppIDs.contains(app.id),
             errorMessage: appState.sessionErrors[app.id],
+            eqPresets: appState.eqPresets,
+            activeEQ: appState.eqPreset(for: rule),
             onVolumeChange: { appState.setAppVolume($0, for: app.id) },
             onToggleMute: { appState.toggleAppMute(for: app.id) },
             onOutputChange: { appState.setAppOutput($0, for: app.id) },
+            onSelectEQPreset: { appState.selectAppEQPreset($0, for: app.id) },
             onReset: { appState.resetAppRule(for: app.id) },
             onRetry: { appState.retrySession(for: app.id) }
         )

@@ -4,13 +4,18 @@ import Foundation
 import OSLog
 
 enum RoutingDecision: Equatable, Sendable {
-    /// Volume == 1.0, unmuted, and following system default -> zero-overhead passthrough (no Tap/Aggregate).
+    /// Volume == 1.0, unmuted, following system default, and no active EQ -> zero-overhead passthrough.
     case passthrough
     /// Requires an active AppAudioSession with the given initial gain & mute flags.
     case activeSession(gain: Float, muted: Bool)
 
-    static func decide(rule: AppRule) -> RoutingDecision {
-        if rule.isDefault {
+    static func decide(rule: AppRule, hasActiveEQ: Bool? = nil) -> RoutingDecision {
+        let eqActive = hasActiveEQ ?? (rule.eqPresetID != nil)
+        let custom = abs(rule.volume - 1.0) >= 0.001
+            || rule.muted
+            || rule.output != .followSystemDefault
+            || eqActive
+        if !custom {
             return .passthrough
         }
         return .activeSession(gain: rule.volume, muted: rule.muted)
@@ -21,6 +26,8 @@ struct RoutingSnapshot: Sendable {
     var activeApps: [AudioApp]
     var systemAlertApp: AudioApp = SystemAlertSound.makeApp(from: [])
     var rules: [String: AppRule]
+    var eqPresets: [EQProfile] = []
+    var deviceEQs: [String: UUID] = [:]
     var preferences: AppPreferences
     var offlineAppIDs: Set<String>
     var sessionErrors: [String: String]
@@ -192,6 +199,32 @@ final class RoutingEngine {
         }
     }
 
+    func updateAppEQPreset(_ presetID: UUID?, for appID: String) {
+        var rule = ruleStore.rule(for: appID)
+        rule.eqPresetID = presetID
+        applyRule(rule, for: appID)
+    }
+
+    func updateDeviceEQPreset(_ presetID: UUID?, for deviceUID: String) {
+        ruleStore.setDeviceEQPresetID(presetID, for: deviceUID)
+        reconcileSoftwareVolumeSession()
+        for (appID, session) in sessions where session.targetOutputUID == deviceUID {
+            let rule = ruleStore.rule(for: appID)
+            session.setEQProfiles(combinedEQProfiles(appRule: rule, outputUID: deviceUID))
+        }
+        emitSnapshot()
+    }
+
+    func addEQPresets(_ presets: [EQProfile]) {
+        ruleStore.addEQPresets(presets)
+        emitSnapshot()
+    }
+
+    func removeEQPreset(id: UUID) {
+        ruleStore.removeEQPreset(id: id)
+        reconcileAllSessions()
+    }
+
     func resetAppRule(appID: String) {
         ruleStore.removeRule(for: appID)
         destroySession(for: appID)
@@ -257,8 +290,9 @@ final class RoutingEngine {
     // MARK: - Reconciliation
 
     private func applyRule(_ rule: AppRule, for appID: String, forceOutputRefresh: Bool = false) {
+        let prevRule = ruleStore.rule(for: appID)
         ruleStore.setRule(rule, for: appID)
-        let decision = RoutingDecision.decide(rule: rule)
+        let decision = decideRouting(for: rule)
 
         switch decision {
         case .passthrough:
@@ -273,7 +307,8 @@ final class RoutingEngine {
                 let devAdj = deviceSoftwareAdjustment(forUID: targetUID)
                 session.setGain(gain * devAdj.gain)
                 session.setMuted(muted || devAdj.muted)
-                if sessionErrors.removeValue(forKey: appID) != nil {
+                session.setEQProfiles(combinedEQProfiles(appRule: rule, outputUID: session.targetOutputUID))
+                if sessionErrors.removeValue(forKey: appID) != nil || prevRule.eqPresetID != rule.eqPresetID {
                     emitSnapshot()
                 }
             } else {
@@ -382,7 +417,7 @@ final class RoutingEngine {
         }
 
         let rule = ruleStore.rule(for: appID)
-        guard case let .activeSession(gain, muted) = RoutingDecision.decide(rule: rule) else {
+        guard case let .activeSession(gain, muted) = decideRouting(for: rule) else {
             destroySession(for: appID)
             offlineAppIDs.remove(appID)
             sessionErrors.removeValue(forKey: appID)
@@ -416,6 +451,7 @@ final class RoutingEngine {
         let devAdj = deviceSoftwareAdjustment(forUID: outputUID)
         let effectiveGain = gain * devAdj.gain
         let effectiveMuted = muted || devAdj.muted
+        let combinedEQ = combinedEQProfiles(appRule: rule, outputUID: outputUID)
         let desiredTapDeviceUID: String? = {
             guard let defaultDev = deviceManager.defaultOutputDevice,
                   defaultDev.uid == outputUID,
@@ -428,6 +464,7 @@ final class RoutingEngine {
         if let existing = sessions[appID] {
             existing.setGain(effectiveGain)
             existing.setMuted(effectiveMuted)
+            existing.setEQProfiles(combinedEQ)
 
             do {
                 if existing.requestedTapDeviceUID != desiredTapDeviceUID {
@@ -458,6 +495,7 @@ final class RoutingEngine {
                 initialMuted: effectiveMuted,
                 initialBufferFrameSize: ruleStore.preferences.bufferFrameSize.frameCount
             )
+            session.setEQProfiles(combinedEQ)
             do {
                 try session.start(
                     processes: processIDs,
@@ -476,6 +514,27 @@ final class RoutingEngine {
         }
     }
 
+    private func decideRouting(for rule: AppRule) -> RoutingDecision {
+        let appEQActive: Bool = {
+            guard let id = rule.eqPresetID, let preset = ruleStore.eqPreset(id: id) else {
+                return false
+            }
+            return preset.isActive
+        }()
+        return RoutingDecision.decide(rule: rule, hasActiveEQ: appEQActive)
+    }
+
+    private func combinedEQProfiles(appRule: AppRule, outputUID: String) -> [EQProfile] {
+        var profiles: [EQProfile] = []
+        if let id = appRule.eqPresetID, let appEQ = ruleStore.eqPreset(id: id), appEQ.isActive {
+            profiles.append(appEQ)
+        }
+        if let deviceEQ = ruleStore.deviceEQ(for: outputUID), deviceEQ.isActive {
+            profiles.append(deviceEQ)
+        }
+        return profiles
+    }
+
     private func deviceSoftwareAdjustment(forUID uid: String) -> (gain: Float, muted: Bool, activeForDevice: Bool) {
         guard let dev = deviceManager.defaultOutputDevice, dev.uid == uid else {
             return (1.0, false, false)
@@ -483,7 +542,8 @@ final class RoutingEngine {
         let rule = ruleStore.deviceVolumeRule(for: uid)
         let swGain: Float = dev.canSetVolume ? 1.0 : rule.volume
         let swMuted: Bool = dev.canMute ? false : rule.muted
-        let active = (!dev.canSetVolume && abs(swGain - 1.0) >= 0.001) || (!dev.canMute && swMuted)
+        let hasActiveEQ = ruleStore.deviceEQ(for: uid)?.isActive ?? false
+        let active = (!dev.canSetVolume && abs(swGain - 1.0) >= 0.001) || (!dev.canMute && swMuted) || hasActiveEQ
         return (swGain, swMuted, active)
     }
 
@@ -541,6 +601,12 @@ final class RoutingEngine {
         let excluded = Array(excludedSet).sorted()
 
         let preserveMultichannel = dev.outputChannelCount > 2
+        let globalEQProfiles: [EQProfile] = {
+            if let eq = ruleStore.deviceEQ(for: dev.uid), eq.isActive {
+                return [eq]
+            }
+            return []
+        }()
 
         if let existing = softwareVolumeSession {
             if existing.targetOutputUID != dev.uid || existing.requestedMultichannel != preserveMultichannel {
@@ -549,6 +615,7 @@ final class RoutingEngine {
             } else {
                 existing.setGain(adj.gain)
                 existing.setMuted(adj.muted)
+                existing.setEQProfiles(globalEQProfiles)
                 do {
                     try existing.updateExcludedProcesses(excluded, deviceUID: dev.uid)
                     if !existing.isIORunning {
@@ -569,6 +636,7 @@ final class RoutingEngine {
             initialMuted: adj.muted,
             initialBufferFrameSize: ruleStore.preferences.bufferFrameSize.frameCount
         )
+        session.setEQProfiles(globalEQProfiles)
         do {
             try session.startGlobal(
                 excludingProcesses: excluded,
@@ -689,6 +757,8 @@ final class RoutingEngine {
             activeApps: processMonitor.apps,
             systemAlertApp: processMonitor.systemAlertApp,
             rules: ruleStore.rules,
+            eqPresets: ruleStore.eqPresets,
+            deviceEQs: ruleStore.deviceEQs,
             preferences: ruleStore.preferences,
             offlineAppIDs: offlineAppIDs,
             sessionErrors: sessionErrors
