@@ -69,7 +69,7 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
 
-            Section(L10n.tr("settings.section.about", defaultValue: "About", language: lang)) {
+            Section {
                 LabeledContent(
                     L10n.tr("settings.version", defaultValue: "Version", language: lang),
                     value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -78,26 +78,29 @@ struct SettingsView: View {
                     L10n.tr("settings.developer", defaultValue: "Developer", language: lang),
                     value: "ColdThunder11 and AIs"
                 )
-            }
-
-            Section {
-                HStack {
-                    Spacer()
-                    Button(
-                        L10n.tr("settings.reset_routing", defaultValue: "Restore Default Audio Routing", language: lang),
-                        role: .destructive
-                    ) {
-                        showResetConfirmation = true
-                    }
-                    .disabled(appState.rules.isEmpty)
-                    Spacer()
-                }
+            } header: {
+                Text(L10n.tr("settings.section.about", defaultValue: "About", language: lang))
             } footer: {
-                Text("In the sky we're forever wild and free")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 4)
+                VStack(spacing: 12) {
+                    HStack {
+                        Spacer()
+                        Button(
+                            L10n.tr("settings.reset_routing", defaultValue: "Restore Default Audio Routing", language: lang),
+                            role: .destructive
+                        ) {
+                            showResetConfirmation = true
+                        }
+                        .font(.body)
+                        .disabled(appState.rules.isEmpty)
+                    }
+
+                    Text("In the sky we're forever wild and free")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 6)
             }
         }
         .formStyle(.grouped)

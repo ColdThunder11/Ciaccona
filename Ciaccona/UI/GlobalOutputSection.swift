@@ -60,8 +60,8 @@ private struct GlobalVolumeControlRow: View {
             Button {
                 appState.toggleGlobalMute()
             } label: {
-                Image(systemName: appState.isGlobalMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    .foregroundStyle(appState.isGlobalMuted ? Color.red : Color.primary)
+                Image(systemName: appState.isGlobalMuted ? "speaker.slash.fill" : "speaker.wave.2")
+                    .foregroundStyle(appState.isGlobalMuted ? Color.red : Color.secondary)
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.borderless)
