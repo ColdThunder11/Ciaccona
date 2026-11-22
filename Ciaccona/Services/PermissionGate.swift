@@ -79,15 +79,48 @@ final class PermissionGate {
         isChecking = true
         defer { isChecking = false }
 
-        let result = await Task.detached(priority: .userInitiated) {
-            Self.runLoopbackProbe()
-        }.value
-        switch result {
-        case .authorized:
-            return true
-        case .notDeterminedOrSilent, .failed:
+        return await Self.evaluateRuntimeRecheck {
+            await Task.detached(priority: .userInitiated) {
+                Self.runLoopbackProbe(pollIterations: 30)
+            }.value
+        }
+    }
+
+    /// Distinguishes genuine TCC audio-capture revocation (repeated clean silent taps)
+    /// from transient wake or audio-device unavailability failures.
+    static func evaluateRuntimeRecheck(
+        maxAttempts: Int = 4,
+        requiredSilentChecks: Int = 2,
+        retryDelay: Duration = .seconds(2),
+        probe: @escaping @Sendable () async -> PermissionProbeResult,
+        sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+    ) async -> Bool {
+        let attempts = max(1, maxAttempts)
+        var cleanSilentCount = 0
+
+        for attempt in 0..<attempts {
+            let result = await probe()
+            switch result {
+            case .authorized:
+                return true
+            case .notDeterminedOrSilent:
+                cleanSilentCount += 1
+                logger.info("Runtime permission probe observed silent tap (\(attempt + 1)/\(attempts))")
+            case .failed(let reason):
+                logger.warning("Runtime permission probe failed transiently (\(attempt + 1)/\(attempts)): \(reason)")
+            }
+
+            if attempt + 1 < attempts {
+                await sleep(retryDelay)
+            }
+        }
+
+        if cleanSilentCount >= requiredSilentChecks {
             return false
         }
+
+        logger.warning("Runtime permission recheck was inconclusive after transient probe failures; keeping session alive")
+        return true
     }
 
     func openSystemAudioCaptureSettings() {
@@ -131,7 +164,7 @@ final class PermissionGate {
     }
 
     /// Executes the self-loopback probe off the MainActor using only public Core Audio & AVFAudio APIs.
-    nonisolated static func runLoopbackProbe() -> PermissionProbeResult {
+    nonisolated static func runLoopbackProbe(pollIterations: Int = 14) -> PermissionProbeResult {
         // 1. Resolve our own process AudioObjectID.
         let pid = ProcessInfo.processInfo.processIdentifier
         let selfProcessID: AudioObjectID
@@ -301,8 +334,8 @@ final class PermissionGate {
             ))
         }
 
-        // Poll for up to ~280ms for non-zero tapped RMS.
-        for _ in 0..<14 {
+        // Poll for non-zero tapped RMS (default ~280ms; longer when checking after wake).
+        for _ in 0..<max(1, pollIterations) {
             Thread.sleep(forTimeInterval: 0.02)
             if params.loadMaxObservedRMS() > 1e-5 {
                 return .authorized

@@ -54,7 +54,10 @@ final class RoutingEngine {
     private var sessionErrors: [String: String] = [:]
     private var silenceWatchdogTask: Task<Void, Never>?
     private var lastSilenceWatchdogProbeAt: ContinuousClock.Instant?
-    private var wakeObserver: NSObjectProtocol?
+    private var wakeRecoveryTask: Task<Void, Never>?
+    private var wakeSettledAt: ContinuousClock.Instant?
+    private var isSystemSleeping = false
+    private var powerObservers: [NSObjectProtocol] = []
 
     init(
         deviceManager: DeviceManager,
@@ -99,16 +102,25 @@ final class RoutingEngine {
         bindGlobalVolumeToDefault()
         startSilenceWatchdog()
 
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+        let sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @AudioControlActor in
+                self?.handleWillSleep()
+            }
+        }
+        let wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification,
             object: nil,
             queue: nil
         ) { [weak self] _ in
             Task { @AudioControlActor in
-                self?.onPermissionRevocationSuspected?()
-                self?.rebuildAllSessions()
+                self?.handleDidWake()
             }
         }
+        powerObservers = [sleepObserver, wakeObserver]
 
         reconcileAllSessions()
     }
@@ -116,12 +128,14 @@ final class RoutingEngine {
     func stopAll() {
         silenceWatchdogTask?.cancel()
         silenceWatchdogTask = nil
+        wakeRecoveryTask?.cancel()
+        wakeRecoveryTask = nil
         idlePauseTasks.values.forEach { $0.cancel() }
         idlePauseTasks.removeAll()
-        if let wakeObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
-            self.wakeObserver = nil
+        for observer in powerObservers {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
+        powerObservers.removeAll()
 
         sessions.values.forEach { $0.stop() }
         sessions.removeAll()
@@ -357,6 +371,8 @@ final class RoutingEngine {
     }
 
     private func handleCoreAudioRestarted() {
+        wakeSettledAt = ContinuousClock.now + .seconds(5)
+        lastSilenceWatchdogProbeAt = nil
         sessions.values.forEach { $0.stop() }
         sessions.removeAll()
         softwareVolumeSession?.stop()
@@ -367,6 +383,41 @@ final class RoutingEngine {
         onSystemAlertDeviceChanged?(deviceManager.defaultSystemOutputDeviceID)
         bindGlobalVolumeToDefault()
         reconcileAllSessions()
+    }
+
+    private func handleWillSleep() {
+        isSystemSleeping = true
+        wakeRecoveryTask?.cancel()
+        wakeRecoveryTask = nil
+    }
+
+    private func handleDidWake() {
+        isSystemSleeping = false
+        wakeSettledAt = ContinuousClock.now + .seconds(6)
+        lastSilenceWatchdogProbeAt = nil
+        sessions.values.forEach { $0.resetSilenceCounter() }
+        wakeRecoveryTask?.cancel()
+
+        wakeRecoveryTask = Task { @AudioControlActor [weak self] in
+            // Allow Core Audio and external/Bluetooth devices to settle after prolonged sleep.
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self, !self.isSystemSleeping else { return }
+
+            self.deviceManager.refreshAll()
+            self.rebuildAllSessions()
+
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled, !self.isSystemSleeping else { return }
+            self.onPermissionRevocationSuspected?()
+        }
+    }
+
+    private func suspectPermissionRevocationIfSettled() {
+        guard !isSystemSleeping else { return }
+        if let wakeSettledAt, ContinuousClock.now < wakeSettledAt {
+            return
+        }
+        onPermissionRevocationSuspected?()
     }
 
     private func rebuildAllSessions() {
@@ -485,7 +536,7 @@ final class RoutingEngine {
                 Self.logger.error("Failed updating session for \(appID): \(error)")
                 sessionErrors[appID] = error.localizedDescription
                 destroySession(for: appID)
-                onPermissionRevocationSuspected?()
+                suspectPermissionRevocationIfSettled()
             }
         } else {
             // Only create session immediately if app is currently playing OR user explicitly changed away from default.
@@ -509,7 +560,7 @@ final class RoutingEngine {
                 Self.logger.error("Failed starting session for \(appID): \(error)")
                 sessionErrors[appID] = error.localizedDescription
                 session.stop()
-                onPermissionRevocationSuspected?()
+                suspectPermissionRevocationIfSettled()
             }
         }
     }
@@ -721,6 +772,10 @@ final class RoutingEngine {
                     .filter(\.isPlaying)
                     .compactMap { self.sessions[$0.id] }
                     .filter(\.isIORunning)
+                if self.isSystemSleeping || (self.wakeSettledAt.map { ContinuousClock.now < $0 } ?? false) {
+                    runningPlayingSessions.forEach { $0.resetSilenceCounter() }
+                    continue
+                }
                 guard !runningPlayingSessions.isEmpty,
                       runningPlayingSessions.allSatisfy({ $0.isSilentExceeding(seconds: 3.0) }) else {
                     continue

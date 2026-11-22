@@ -174,3 +174,72 @@ struct AudioObjectTests {
         })
     }
 }
+
+@Suite("PermissionGate Tests")
+struct PermissionGateTests {
+    @MainActor
+    private func runRecheck(sequence: [PermissionProbeResult]) async -> Bool {
+        let index = Mutex(0)
+        return await PermissionGate.evaluateRuntimeRecheck(
+            maxAttempts: sequence.count,
+            requiredSilentChecks: 2,
+            retryDelay: .zero,
+            probe: {
+                let current = index.withLock { idx -> Int in
+                    let value = idx
+                    idx += 1
+                    return value
+                }
+                return sequence[min(current, sequence.count - 1)]
+            },
+            sleep: { _ in }
+        )
+    }
+
+    @Test("Runtime recheck stays authorized when wake failures recover to authorized")
+    @MainActor
+    func transientWakeFailureRecovers() async {
+        let ok = await runRecheck(sequence: [
+            .failed("No default audio output device found"),
+            .notDeterminedOrSilent,
+            .authorized
+        ])
+        #expect(ok)
+    }
+
+    @Test("Runtime recheck does not falsely revoke permission when all attempts fail due to unavailable audio device")
+    @MainActor
+    func unavailableDeviceDoesNotRevoke() async {
+        let ok = await runRecheck(sequence: [
+            .failed("No default audio output device found"),
+            .failed("No default audio output device found"),
+            .failed("Failed to start probe audio engine"),
+            .failed("No default audio output device found")
+        ])
+        #expect(ok)
+    }
+
+    @Test("Runtime recheck requires repeated clean silent taps before treating permission as revoked")
+    @MainActor
+    func singleSilentWithFailuresDoesNotRevoke() async {
+        let ok = await runRecheck(sequence: [
+            .failed("Transient HAL error"),
+            .notDeterminedOrSilent,
+            .failed("Device disconnected"),
+            .failed("Device disconnected")
+        ])
+        #expect(ok)
+    }
+
+    @Test("Runtime recheck detects genuine revocation on repeated clean silent taps")
+    @MainActor
+    func repeatedCleanSilenceDetectsRevocation() async {
+        let ok = await runRecheck(sequence: [
+            .notDeterminedOrSilent,
+            .notDeterminedOrSilent,
+            .notDeterminedOrSilent,
+            .notDeterminedOrSilent
+        ])
+        #expect(!ok)
+    }
+}
